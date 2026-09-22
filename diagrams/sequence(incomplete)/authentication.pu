@@ -1,0 +1,166 @@
+@startuml Sequence_Auth
+!theme plain
+skinparam sequenceArrowThickness 2
+skinparam participantBorderColor #2C3E50
+skinparam participantBackgroundColor #ECF0F1
+skinparam actorBorderColor #2C3E50
+skinparam sequenceLifeLineBorderColor #2C3E50
+skinparam noteBorderColor #E67E22
+skinparam noteBackgroundColor #FDEBD0
+
+title Sơ đồ Sequence — Xác thực (JWT + Refresh Token)
+
+actor "Client\n(Browser)" as Client
+participant "AuthController" as AuthCtrl
+participant "AuthService" as AuthSvc
+participant "UserRepository" as UserRepo
+participant "RefreshTokenRepository" as RTRepo
+database "PostgreSQL" as DB
+
+' ==========================================
+== UC1: Đăng ký tài khoản ==
+' ==========================================
+
+Client -> AuthCtrl : POST /api/auth/register\n{email, password, fullName}
+activate AuthCtrl
+
+AuthCtrl -> AuthSvc : register(request)
+activate AuthSvc
+
+AuthSvc -> UserRepo : existsByEmail(email)
+activate UserRepo
+UserRepo -> DB : SELECT
+DB --> UserRepo : result
+UserRepo --> AuthSvc : boolean
+deactivate UserRepo
+
+alt Email đã tồn tại
+    AuthSvc --> AuthCtrl : throw EmailAlreadyExistsException
+    AuthCtrl --> Client : 409 Conflict\n{"success": false, "message": "Email đã tồn tại"}
+else Email chưa tồn tại
+    AuthSvc -> AuthSvc : validate(request)\n(kiểm tra định dạng, độ dài...)
+    AuthSvc -> AuthSvc : BCrypt.hash(password)
+    AuthSvc -> UserRepo : save(newUser)
+    activate UserRepo
+    UserRepo -> DB : INSERT users
+    DB --> UserRepo : savedUser
+    UserRepo --> AuthSvc : User
+    deactivate UserRepo
+    AuthSvc --> AuthCtrl : UserResponse
+    AuthCtrl --> Client : 201 Created\n{"success": true, "data": {userId, email}}
+end
+
+deactivate AuthSvc
+deactivate AuthCtrl
+
+' ==========================================
+== UC2: Đăng nhập ==
+' ==========================================
+
+Client -> AuthCtrl : POST /api/auth/login\n{email, password}
+activate AuthCtrl
+
+AuthCtrl -> AuthSvc : login(request)
+activate AuthSvc
+
+AuthSvc -> UserRepo : findByEmail(email)
+activate UserRepo
+UserRepo -> DB : SELECT users
+DB --> UserRepo : User | null
+UserRepo --> AuthSvc : Optional<User>
+deactivate UserRepo
+
+alt Không tìm thấy user hoặc sai mật khẩu
+    AuthSvc --> AuthCtrl : throw BadCredentialsException
+    AuthCtrl --> Client : 401 Unauthorized\n{"success": false, "message": "Sai email hoặc mật khẩu"}
+else Xác thực thành công
+    AuthSvc -> AuthSvc : BCrypt.matches(password, hash)
+    AuthSvc -> AuthSvc : generateAccessToken(user)\n[JWT, hết hạn 15-60 phút]
+    AuthSvc -> AuthSvc : generateRefreshToken()
+    AuthSvc -> RTRepo : save(refreshToken)
+    activate RTRepo
+    RTRepo -> DB : INSERT refresh_tokens
+    DB --> RTRepo : saved
+    RTRepo --> AuthSvc : RefreshToken
+    deactivate RTRepo
+    AuthSvc --> AuthCtrl : {accessToken, refreshToken}
+    AuthCtrl --> Client : 200 OK\n{"success": true, "data": {accessToken}}\n+ Set-Cookie: refreshToken (HttpOnly)
+end
+
+deactivate AuthSvc
+deactivate AuthCtrl
+
+' ==========================================
+== UC3: Làm mới Access Token ==
+' ==========================================
+
+Client -> AuthCtrl : POST /api/auth/refresh\n[Cookie: refreshToken]
+activate AuthCtrl
+
+AuthCtrl -> AuthSvc : refreshAccessToken(refreshToken)
+activate AuthSvc
+
+AuthSvc -> RTRepo : findByToken(refreshToken)
+activate RTRepo
+RTRepo -> DB : SELECT refresh_tokens
+DB --> RTRepo : RefreshToken | null
+RTRepo --> AuthSvc : Optional<RefreshToken>
+deactivate RTRepo
+
+alt Token không tồn tại / đã bị thu hồi / hết hạn
+    AuthSvc --> AuthCtrl : throw InvalidRefreshTokenException
+    AuthCtrl --> Client : 401 Unauthorized\n{"success": false, "message": "Refresh token không hợp lệ"}
+else Token hợp lệ
+    AuthSvc -> AuthSvc : kiểm tra revoked == false\nvà expires_at > now()
+    AuthSvc -> AuthSvc : generateAccessToken(user)\n[JWT mới]
+    AuthSvc --> AuthCtrl : newAccessToken
+    AuthCtrl --> Client : 200 OK\n{"success": true, "data": {accessToken}}
+end
+
+deactivate AuthSvc
+deactivate AuthCtrl
+
+' ==========================================
+== UC4: Đăng xuất ==
+' ==========================================
+
+Client -> AuthCtrl : POST /api/auth/logout\n[Cookie: refreshToken]
+activate AuthCtrl
+
+AuthCtrl -> AuthSvc : logout(refreshToken)
+activate AuthSvc
+
+AuthSvc -> RTRepo : revokeToken(refreshToken)
+activate RTRepo
+RTRepo -> DB : UPDATE refresh_tokens\nSET revoked = true
+DB --> RTRepo : updated
+RTRepo --> AuthSvc : void
+deactivate RTRepo
+
+AuthSvc --> AuthCtrl : void
+AuthCtrl --> Client : 200 OK\n{"success": true, "message": "Đăng xuất thành công"}\n+ Clear Cookie: refreshToken
+
+deactivate AuthSvc
+deactivate AuthCtrl
+
+' ==========================================
+== UC5: Truy cập tài nguyên được bảo vệ ==
+' ==========================================
+
+Client -> AuthCtrl : GET /api/... \n[Authorization: Bearer <accessToken>]
+activate AuthCtrl
+
+note over AuthCtrl : JWT Filter chặn request\ntrước khi vào controller
+
+AuthCtrl -> AuthCtrl : JwtFilter.validateAccessToken(token)
+
+alt Token không hợp lệ hoặc hết hạn
+    AuthCtrl --> Client : 401 Unauthorized\n{"success": false, "message": "Token không hợp lệ"}
+else Token hợp lệ
+    AuthCtrl -> AuthCtrl : loadUserByUsername(email)\nsetup SecurityContext
+    AuthCtrl --> Client : 200 OK\n{"success": true, "data": {...}}
+end
+
+deactivate AuthCtrl
+
+@enduml

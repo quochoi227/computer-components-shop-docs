@@ -1,0 +1,130 @@
+@startuml Sequence_Chatbot
+!theme plain
+skinparam sequenceArrowThickness 2
+skinparam participantBorderColor #2C3E50
+skinparam participantBackgroundColor #ECF0F1
+skinparam actorBorderColor #2C3E50
+skinparam sequenceLifeLineBorderColor #2C3E50
+skinparam noteBorderColor #E67E22
+skinparam noteBackgroundColor #FDEBD0
+
+title Sơ đồ Sequence — Chatbot AI\n(RAG + Gợi ý cấu hình PC)
+
+actor "Guest / User" as Client
+participant "ChatController" as ChatCtrl
+participant "ChatService" as ChatSvc
+participant "RagService" as RagSvc
+participant "PcConfigSuggestionService" as PcSvc
+participant "GeminiAPI" as Gemini
+database "PostgreSQL\n(pgvector)" as VectorDB
+database "PostgreSQL\n(main)" as MainDB
+
+Client -> ChatCtrl : POST /api/chat\n{message: "..."}
+activate ChatCtrl
+
+ChatCtrl -> ChatSvc : handleMessage(message)
+activate ChatSvc
+
+ChatSvc -> ChatSvc : classifyIntent(message)
+note right : Phân loại ý định:\n- RAG: hỏi về chính sách\n- PC_CONFIG: gợi ý cấu hình
+
+' ==========================================
+== Nhánh A: RAG — Hỏi chính sách shop ==
+' ==========================================
+
+alt Ý định = RAG (hỏi về chính sách / bảo hành / đổi trả / ...)
+
+    ChatSvc -> RagSvc : answerWithRag(message)
+    activate RagSvc
+
+    RagSvc -> Gemini : embedContent(message)\n[Gemini Embedding API]
+    activate Gemini
+    Gemini --> RagSvc : questionEmbedding[768]
+    deactivate Gemini
+
+    RagSvc -> VectorDB : SELECT content\nFROM rag_chunks\nORDER BY embedding <=> questionEmbedding\nLIMIT 5
+    activate VectorDB
+    VectorDB --> RagSvc : topKChunks[]
+    deactivate VectorDB
+
+    RagSvc -> RagSvc : buildPrompt(\n  systemInstruction,\n  context = join(topKChunks),\n  userMessage\n)
+
+    RagSvc -> Gemini : generateContent(prompt)\n[Gemini Chat API]
+    activate Gemini
+    Gemini --> RagSvc : aiResponse
+    deactivate Gemini
+
+    RagSvc --> ChatSvc : aiResponse
+    deactivate RagSvc
+
+' ==========================================
+== Nhánh B: PC Config — Gợi ý cấu hình ==
+' ==========================================
+
+else Ý định = PC_CONFIG (gợi ý cấu hình / build PC / ...)
+
+    ChatSvc -> PcSvc : suggestPcConfig(message)
+    activate PcSvc
+
+    PcSvc -> MainDB : SELECT pc_cases.*, products.*\nFROM pc_cases\nJOIN pc_case_items ON ...\nJOIN products ON ...\nWHERE pc_cases.is_active = true\n  AND products.stock_quantity > 0
+    activate MainDB
+    MainDB --> PcSvc : pcCaseList[]
+    deactivate MainDB
+
+    PcSvc -> PcSvc : buildPrompt(\n  systemInstruction =\n    "Chỉ gợi ý từ danh sách có sẵn,\n    KHÔNG tự lắp ghép linh kiện mới",\n  context = serialize(pcCaseList),\n  userMessage\n)
+
+    PcSvc -> Gemini : generateContent(prompt)\n[Gemini Chat API]
+    activate Gemini
+    Gemini --> PcSvc : aiResponse\n(gợi ý 1-3 PC Case phù hợp)
+    deactivate Gemini
+
+    PcSvc --> ChatSvc : aiResponse
+    deactivate PcSvc
+
+end
+
+ChatSvc --> ChatCtrl : ChatResponse
+deactivate ChatSvc
+
+ChatCtrl --> Client : 200 OK\n{"success": true, "data": {reply: "..."}}
+deactivate ChatCtrl
+
+' ==========================================
+== [Admin] Upload tài liệu RAG ==
+' ==========================================
+
+actor "Admin" as Admin
+
+Admin -> ChatCtrl : POST /api/admin/rag/documents\n[multipart: file (PDF/DOCX/TXT)]
+activate ChatCtrl
+
+ChatCtrl -> RagSvc : uploadDocument(file)
+activate RagSvc
+
+RagSvc -> VectorDB : INSERT rag_documents\n{title, source_file}
+activate VectorDB
+VectorDB --> RagSvc : documentId
+deactivate VectorDB
+
+RagSvc -> RagSvc : splitIntoChunks(fileContent)
+note right : Chia văn bản thành\ncác đoạn nhỏ (chunks)
+
+loop Với mỗi chunk
+    RagSvc -> Gemini : embedContent(chunk)\n[Gemini Embedding API]
+    activate Gemini
+    Gemini --> RagSvc : embedding[768]
+    deactivate Gemini
+
+    RagSvc -> VectorDB : INSERT rag_chunks\n{document_id, content, embedding}
+    activate VectorDB
+    VectorDB --> RagSvc : saved
+    deactivate VectorDB
+end
+
+RagSvc --> ChatCtrl : DocumentResponse
+deactivate RagSvc
+
+ChatCtrl --> Admin : 201 Created\n{"success": true, "data": {documentId, title}}
+deactivate ChatCtrl
+
+@enduml

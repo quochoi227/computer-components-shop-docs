@@ -1,0 +1,202 @@
+@startuml Sequence_PCCase
+!theme plain
+skinparam sequenceArrowThickness 2
+skinparam participantBorderColor #2C3E50
+skinparam participantBackgroundColor #ECF0F1
+skinparam actorBorderColor #2C3E50
+skinparam sequenceLifeLineBorderColor #2C3E50
+skinparam noteBorderColor #E67E22
+skinparam noteBackgroundColor #FDEBD0
+
+title Sơ đồ Sequence — Quản lý PC Case (Admin)
+
+actor "Admin" as Admin
+participant "AdminPcCaseController" as Ctrl
+participant "PcCaseService" as PcSvc
+participant "CompatibilityCheckerService" as CompSvc
+participant "ProductRepository" as ProdRepo
+participant "PcCaseRepository" as PcRepo
+database "PostgreSQL" as DB
+
+' ==========================================
+== UC1: Xem danh sách PC Case ==
+' ==========================================
+
+Admin -> Ctrl : GET /api/admin/pc-cases
+activate Ctrl
+
+Ctrl -> PcSvc : getAllPcCases()
+activate PcSvc
+
+PcSvc -> PcRepo : findAllWithItems()
+activate PcRepo
+PcRepo -> DB : SELECT pc_cases\nJOIN pc_case_items\nJOIN products
+DB --> PcRepo : PcCase[]
+PcRepo --> PcSvc : List<PcCase>
+deactivate PcRepo
+
+PcSvc --> Ctrl : List<PcCaseResponse>
+deactivate PcSvc
+
+Ctrl --> Admin : 200 OK\n{"success": true, "data": [...]}
+deactivate Ctrl
+
+' ==========================================
+== UC2: Tạo PC Case mới ==
+' ==========================================
+
+Admin -> Ctrl : POST /api/admin/pc-cases\n{name, useCase, description,\n items: [{productId, category}, ...]}
+activate Ctrl
+
+Ctrl -> PcSvc : createPcCase(request)
+activate PcSvc
+
+PcSvc -> ProdRepo : findAllByIdIn(productIds)
+activate ProdRepo
+ProdRepo -> DB : SELECT products WHERE id IN (...)
+DB --> ProdRepo : Product[]
+ProdRepo --> PcSvc : Map<Category, Product>
+deactivate ProdRepo
+
+PcSvc -> CompSvc : check(products)
+activate CompSvc
+
+note over CompSvc
+  Kiểm tra 8 ràng buộc tương thích:
+  C1: CPU.socket == MAINBOARD.socket
+  C2: RAM.type == MAINBOARD.memory_type
+  C3: MAINBOARD.form_factor ∈ CASE.form_factor_support
+  C4: GPU.length_mm <= CASE.max_gpu_length_mm
+  C5: CPU_COOLER.height_mm <= CASE.max_cooler_height_mm
+  C6: CPU.socket ∈ CPU_COOLER.socket_support
+  C7: (CPU.tdp_w + GPU.tdp_w) <= PSU.wattage_w * 0.8
+  C8: Tất cả products.stock_quantity > 0
+end note
+
+CompSvc -> CompSvc : checkSocketMatch(cpu, mainboard)
+CompSvc -> CompSvc : checkMemoryType(ram, mainboard)
+CompSvc -> CompSvc : checkFormFactor(mainboard, pcCase)
+CompSvc -> CompSvc : checkGpuLength(gpu, pcCase)
+CompSvc -> CompSvc : checkCoolerHeight(cooler, pcCase)
+CompSvc -> CompSvc : checkCoolerSocket(cooler, cpu)
+CompSvc -> CompSvc : checkTdpPsu(cpu, gpu, psu)
+CompSvc -> CompSvc : checkStockQuantity(products)
+
+CompSvc --> PcSvc : CompatibilityResult\n{compatible, violations[]}
+deactivate CompSvc
+
+alt Có vi phạm ràng buộc tương thích
+    PcSvc --> Ctrl : throw IncompatibleComponentsException\n(violations[])
+    Ctrl --> Admin : 422 Unprocessable Entity\n{"success": false,\n "message": "Linh kiện không tương thích",\n "data": {violations: [...]}}
+else Tất cả ràng buộc hợp lệ
+    PcSvc -> PcSvc : calculateTotalPrice(products)
+
+    PcSvc -> PcRepo : save(newPcCase)
+    activate PcRepo
+    PcRepo -> DB : INSERT pc_cases
+    DB --> PcRepo : savedPcCase
+    PcRepo --> PcSvc : PcCase
+    deactivate PcRepo
+
+    PcSvc -> PcRepo : saveItems(pcCaseId, items)
+    activate PcRepo
+    PcRepo -> DB : INSERT pc_case_items
+    DB --> PcRepo : saved
+    PcRepo --> PcSvc : void
+    deactivate PcRepo
+
+    PcSvc --> Ctrl : PcCaseResponse
+    Ctrl --> Admin : 201 Created\n{"success": true, "data": {pcCaseId, name, totalPrice, ...}}
+end
+
+deactivate PcSvc
+deactivate Ctrl
+
+' ==========================================
+== UC3: Cập nhật PC Case ==
+' ==========================================
+
+Admin -> Ctrl : PUT /api/admin/pc-cases/{id}\n{name, useCase, items: [...]}
+activate Ctrl
+
+Ctrl -> PcSvc : updatePcCase(id, request)
+activate PcSvc
+
+PcSvc -> PcRepo : findById(id)
+activate PcRepo
+PcRepo -> DB : SELECT pc_cases
+DB --> PcRepo : PcCase | null
+PcRepo --> PcSvc : Optional<PcCase>
+deactivate PcRepo
+
+alt PC Case không tồn tại
+    PcSvc --> Ctrl : throw ResourceNotFoundException
+    Ctrl --> Admin : 404 Not Found\n{"success": false, "message": "PC Case không tồn tại"}
+else Tồn tại
+    PcSvc -> ProdRepo : findAllByIdIn(newProductIds)
+    activate ProdRepo
+    ProdRepo -> DB : SELECT products
+    DB --> ProdRepo : Product[]
+    ProdRepo --> PcSvc : Map<Category, Product>
+    deactivate ProdRepo
+
+    PcSvc -> CompSvc : check(newProducts)
+    activate CompSvc
+    CompSvc --> PcSvc : CompatibilityResult
+    deactivate CompSvc
+
+    alt Có vi phạm
+        PcSvc --> Ctrl : throw IncompatibleComponentsException
+        Ctrl --> Admin : 422 Unprocessable Entity
+    else Hợp lệ
+        PcSvc -> PcRepo : updatePcCase(id, updatedData)
+        activate PcRepo
+        PcRepo -> DB : UPDATE pc_cases\nDELETE + INSERT pc_case_items
+        DB --> PcRepo : updated
+        PcRepo --> PcSvc : PcCase
+        deactivate PcRepo
+
+        PcSvc --> Ctrl : PcCaseResponse
+        Ctrl --> Admin : 200 OK\n{"success": true, "data": {...}}
+    end
+end
+
+deactivate PcSvc
+deactivate Ctrl
+
+' ==========================================
+== UC4: Xóa PC Case ==
+' ==========================================
+
+Admin -> Ctrl : DELETE /api/admin/pc-cases/{id}
+activate Ctrl
+
+Ctrl -> PcSvc : deletePcCase(id)
+activate PcSvc
+
+PcSvc -> PcRepo : findById(id)
+activate PcRepo
+PcRepo -> DB : SELECT pc_cases
+DB --> PcRepo : PcCase | null
+PcRepo --> PcSvc : Optional<PcCase>
+deactivate PcRepo
+
+alt Không tồn tại
+    PcSvc --> Ctrl : throw ResourceNotFoundException
+    Ctrl --> Admin : 404 Not Found
+else Tồn tại
+    PcSvc -> PcRepo : softDelete(id)\n[SET is_active = false]
+    activate PcRepo
+    PcRepo -> DB : UPDATE pc_cases\nSET is_active = false
+    DB --> PcRepo : updated
+    PcRepo --> PcSvc : void
+    deactivate PcRepo
+
+    PcSvc --> Ctrl : void
+    Ctrl --> Admin : 200 OK\n{"success": true, "message": "Đã xóa PC Case"}
+end
+
+deactivate PcSvc
+deactivate Ctrl
+
+@enduml
