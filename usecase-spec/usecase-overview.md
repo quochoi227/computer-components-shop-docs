@@ -29,7 +29,6 @@
 | Use Case | Mô tả | Endpoint |
 |----------|-------|----------|
 | Đăng xuất | Thu hồi Refresh Token | `POST /api/auth/logout` |
-| Làm mới Access Token | Dùng Refresh Token để lấy AT mới | `POST /api/auth/refresh` |
 | Xem giỏ hàng | Danh sách sản phẩm trong giỏ | `GET /api/cart` |
 | Thêm vào giỏ hàng | Thêm sản phẩm vào giỏ | `POST /api/cart/items` |
 | Cập nhật số lượng | Thay đổi số lượng sản phẩm trong giỏ | `PUT /api/cart/items/{id}` |
@@ -49,6 +48,7 @@
 | Xem tất cả đơn hàng | Quản lý toàn bộ đơn hàng | `GET /api/admin/orders` |
 | Cập nhật trạng thái đơn hàng | Chuyển PENDING→CONFIRMED→SHIPPING→DELIVERED | `PUT /api/admin/orders/{id}/status` |
 | Tạo PC Case mới | Chọn linh kiện + tự động kiểm tra tương thích | `POST /api/admin/pc-cases` |
+| Xem danh sách PC Case | Liệt kê các PC Case đã tạo | `GET /api/admin/pc-cases` |
 | Cập nhật PC Case | Chỉnh sửa linh kiện trong PC Case | `PUT /api/admin/pc-cases/{id}` |
 | Xóa PC Case | Xóa PC Case | `DELETE /api/admin/pc-cases/{id}` |
 | Upload tài liệu RAG | Upload PDF/DOCX/TXT cho chatbot chính sách | `POST /api/admin/rag/documents` |

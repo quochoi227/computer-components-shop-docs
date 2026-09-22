@@ -33,7 +33,6 @@ package "Xác thực" {
   usecase "Đăng ký tài khoản" as UC_Register
   usecase "Đăng nhập" as UC_Login
   usecase "Đăng xuất" as UC_Logout
-  usecase "Làm mới Access Token" as UC_RefreshToken
 }
 
 package "Giỏ hàng & Đặt hàng" {
@@ -90,7 +89,6 @@ Guest --> UC_Chat
 
 ' ===== USER ASSOCIATIONS (thêm vào quyền Guest) =====
 User --> UC_Logout
-User --> UC_RefreshToken
 User --> UC_ViewCart
 User --> UC_AddToCart
 User --> UC_UpdateCart
