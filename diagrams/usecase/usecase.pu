@@ -59,6 +59,11 @@ package "Quản lý sản phẩm (Admin)" {
   usecase "Upload ảnh sản phẩm" as UC_UploadImage
 }
 
+package "Đánh giá sản phẩm" {
+  usecase "Đánh giá sản phẩm\n(1–5 sao + nhận xét)" as UC_ReviewProduct
+  usecase "Xem đánh giá\nsản phẩm" as UC_ViewReviews
+}
+
 package "Quản lý đơn hàng (Admin)" {
   usecase "Xem tất cả đơn hàng" as UC_AdminViewOrders
   usecase "Cập nhật trạng thái\nđơn hàng" as UC_UpdateOrderStatus
@@ -76,6 +81,13 @@ package "Quản lý tài liệu RAG (Admin)" {
   usecase "Upload tài liệu RAG\n(PDF/DOCX/TXT)" as UC_UploadRAG
   usecase "Xem danh sách\ntài liệu RAG" as UC_ViewRAGDocs
   usecase "Xóa tài liệu RAG" as UC_DeleteRAGDocs
+}
+
+package "Thống kê số liệu (Admin)" {
+  usecase "Xem thống kê\ndoanh thu" as UC_StatRevenue
+  usecase "Xem thống kê\nđơn hàng" as UC_StatOrders
+  usecase "Xem sản phẩm\nbán chạy" as UC_StatTopProducts
+  usecase "Xem thống kê\nngười dùng mới" as UC_StatUsers
 }
 
 ' ===== GUEST ASSOCIATIONS =====
@@ -97,6 +109,8 @@ User --> UC_PlaceOrder
 User --> UC_ViewOrders
 User --> UC_ViewOrderDetail
 User --> UC_CancelOrder
+User --> UC_ReviewProduct
+Guest --> UC_ViewReviews
 
 ' ===== ADMIN ASSOCIATIONS (thêm vào quyền User) =====
 Admin --> UC_CreateProduct
@@ -112,20 +126,29 @@ Admin --> UC_DeletePCCase
 Admin --> UC_UploadRAG
 Admin --> UC_ViewRAGDocs
 Admin --> UC_DeleteRAGDocs
+Admin --> UC_StatRevenue
+Admin --> UC_StatOrders
+Admin --> UC_StatTopProducts
+Admin --> UC_StatUsers
 
 ' ===== INCLUDE / EXTEND =====
-UC_Chat ..> UC_AskPolicy    : <>
-UC_Chat ..> UC_AskPCConfig  : <>
+UC_Chat ..> UC_AskPolicy    : <<extend>>
+UC_Chat ..> UC_AskPCConfig  : <<extend>>
 
-UC_CreateProduct ..> UC_UploadImage : <>
-UC_UpdateProduct ..> UC_UploadImage : <>
+UC_CreateProduct ..> UC_UploadImage : <<include>>
 
-UC_SearchProducts ..> UC_FilterProducts : <>
+UC_SearchProducts ..> UC_FilterProducts : <<extend>>
 
-UC_CreatePCCase ..> UC_CheckCompatibility : <>
-UC_UpdatePCCase ..> UC_CheckCompatibility : <>
+UC_CreatePCCase ..> UC_CheckCompatibility : <<include>>
+UC_UpdatePCCase ..> UC_CheckCompatibility : <<include>>
 
-UC_PlaceOrder ..> UC_ViewCart : <>
+UC_PlaceOrder ..> UC_ViewCart : <<extend>>
+
+UC_ReviewProduct ..> UC_ViewProductDetail : <<include>>
+
+' Thống kê tổng hợp — các use case con được include
+UC_StatRevenue ..> UC_StatOrders : <<include>>
+UC_StatTopProducts ..> UC_StatOrders : <<include>>
 
 ' ===== GEMINI AI =====
 GeminiAI --> UC_AskPolicy

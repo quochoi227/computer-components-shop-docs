@@ -37,6 +37,7 @@
 | Xem lịch sử đơn hàng | Danh sách đơn hàng của chính mình | `GET /api/orders` |
 | Xem chi tiết đơn hàng | Thông tin chi tiết 1 đơn | `GET /api/orders/{id}` |
 | Hủy đơn hàng | Hủy đơn ở trạng thái PENDING | `PUT /api/orders/{id}/cancel` |
+| Đánh giá sản phẩm | Viết nhận xét và chấm điểm (1–5 sao) cho sản phẩm đã mua | `POST /api/products/{id}/reviews` |
 
 ### Admin (thêm vào quyền User)
 
@@ -54,3 +55,4 @@
 | Upload tài liệu RAG | Upload PDF/DOCX/TXT cho chatbot chính sách | `POST /api/admin/rag/documents` |
 | Xem danh sách tài liệu RAG | Liệt kê tài liệu đã upload | `GET /api/admin/rag/documents` |
 | Xóa tài liệu RAG | Xóa tài liệu khỏi hệ thống RAG | `DELETE /api/admin/rag/documents/{id}` |
+| Xem thống kê số liệu | Xem dashboard tổng hợp: doanh thu, đơn hàng, sản phẩm bán chạy, người dùng mới | `GET /api/admin/statistics` |

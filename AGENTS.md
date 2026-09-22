@@ -91,10 +91,10 @@ Dự án được tổ chức thành **2 repo riêng biệt**:
 ### Roles
 
 | Role | Quyền hạn |
-|------|-----------|
-| **Guest** | Xem danh sách sản phẩm, chi tiết sản phẩm, sử dụng chatbot AI |
-| **User** | Tất cả quyền của Guest + đăng ký / đăng nhập, đặt hàng, xem lịch sử đơn hàng, quản lý giỏ hàng |
-| **Admin** | Tất cả quyền của User + quản lý sản phẩm, đơn hàng, tạo PC Case, quản lý tài liệu RAG |
+|------|-----------| 
+| **Guest** | Xem danh sách sản phẩm, chi tiết sản phẩm, xem đánh giá sản phẩm, sử dụng chatbot AI |
+| **User** | Tất cả quyền của Guest + đăng ký / đăng nhập, đặt hàng, xem lịch sử đơn hàng, quản lý giỏ hàng, đánh giá sản phẩm đã mua |
+| **Admin** | Tất cả quyền của User + quản lý sản phẩm, đơn hàng, tạo PC Case, quản lý tài liệu RAG, xem thống kê số liệu |
 
 ### Cơ chế xác thực
 
@@ -166,6 +166,18 @@ cart_items (
   product_id UUID REFERENCES products(id),
   quantity INT NOT NULL DEFAULT 1,
   UNIQUE(user_id, product_id)
+)
+
+-- Đánh giá sản phẩm
+product_reviews (
+  id UUID PRIMARY KEY,
+  user_id UUID REFERENCES users(id),
+  product_id UUID REFERENCES products(id),
+  rating SMALLINT NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  comment TEXT,
+  created_at TIMESTAMP,
+  updated_at TIMESTAMP,
+  UNIQUE(user_id, product_id)   -- Mỗi user chỉ đánh giá 1 lần / sản phẩm
 )
 ```
 
@@ -421,6 +433,22 @@ Gemini trả về: Giải thích + gợi ý 1–3 PC Case phù hợp nhất
 | GET | `/api/admin/rag/documents` | Danh sách tài liệu RAG | Admin |
 | DELETE | `/api/admin/rag/documents/{id}` | Xoá tài liệu RAG | Admin |
 
+### Reviews (Đánh giá sản phẩm)
+| Method | Endpoint | Mô tả | Auth |
+|--------|----------|-------|------|
+| GET | `/api/products/{id}/reviews` | Xem tất cả đánh giá của sản phẩm | Public |
+| POST | `/api/products/{id}/reviews` | Viết đánh giá cho sản phẩm (đã mua) | User |
+| PUT | `/api/products/{id}/reviews/{reviewId}` | Cập nhật đánh giá của mình | User |
+| DELETE | `/api/products/{id}/reviews/{reviewId}` | Xoá đánh giá của mình | User |
+
+### Statistics (Admin)
+| Method | Endpoint | Mô tả | Auth |
+|--------|----------|-------|------|
+| GET | `/api/admin/statistics/revenue` | Thống kê doanh thu theo ngày/tháng/năm | Admin |
+| GET | `/api/admin/statistics/orders` | Thống kê số lượng đơn hàng theo trạng thái | Admin |
+| GET | `/api/admin/statistics/top-products` | Top sản phẩm bán chạy nhất | Admin |
+| GET | `/api/admin/statistics/users` | Thống kê người dùng mới theo thời gian | Admin |
+
 ---
 
 ## 8. Cấu trúc thư mục đề xuất
@@ -436,7 +464,8 @@ src/
 │   ├── product/      # ProductCard, ProductDetail, ...
 │   ├── cart/         # CartItem, CartSummary, ...
 │   ├── chat/         # ChatBox, ChatMessage, ...
-│   └── admin/        # AdminTable, PcCaseForm, ...
+│   ├── review/       # ReviewForm, ReviewList, StarRating, ...
+│   └── admin/        # AdminTable, PcCaseForm, StatisticsChart, ...
 ├── contexts/         # React Context (Auth, Cart)
 ├── hooks/            # Custom hooks
 ├── pages/            # Route-level components
@@ -449,6 +478,7 @@ src/
 │   ├── ChatPage.tsx
 │   └── admin/
 │       ├── AdminDashboard.tsx
+│       ├── StatisticsDashboard.tsx
 │       ├── ProductManagement.tsx
 │       ├── OrderManagement.tsx
 │       ├── PcCaseManagement.tsx
@@ -470,13 +500,15 @@ src/main/java/com/example/pcshop/
 │   ├── OrderController.java
 │   ├── CartController.java
 │   ├── ChatController.java
+│   ├── ReviewController.java
 │   └── admin/
 │       ├── AdminProductController.java
 │       ├── AdminOrderController.java
 │       ├── AdminPcCaseController.java
-│       └── AdminRagController.java
+│       ├── AdminRagController.java
+│       └── AdminStatisticsController.java
 ├── dto/              # Request/Response DTOs
-├── entity/           # JPA Entities (User, Product, Order, ...)
+├── entity/           # JPA Entities (User, Product, Order, ProductReview, ...)
 ├── exception/        # Custom exceptions, GlobalExceptionHandler
 ├── repository/       # Spring Data JPA Repositories
 ├── security/         # JWT utils, UserDetailsService, filters
@@ -485,11 +517,13 @@ src/main/java/com/example/pcshop/
 │   ├── ProductService.java
 │   ├── OrderService.java
 │   ├── CartService.java
+│   ├── ReviewService.java                     # Đánh giá sản phẩm
+│   ├── StatisticsService.java                 # Thống kê số liệu cho Admin
 │   ├── PcCaseService.java
-│   ├── CompatibilityCheckerService.java   # Kiểm tra ràng buộc linh kiện
-│   ├── ChatService.java                   # Điều phối RAG vs PC Config
-│   ├── RagService.java                    # RAG pipeline
-│   └── PcConfigSuggestionService.java     # Gợi ý cấu hình PC
+│   ├── CompatibilityCheckerService.java       # Kiểm tra ràng buộc linh kiện
+│   ├── ChatService.java                       # Điều phối RAG vs PC Config
+│   ├── RagService.java                        # RAG pipeline
+│   └── PcConfigSuggestionService.java         # Gợi ý cấu hình PC
 └── util/             # Các tiện ích dùng chung
 ```
 
@@ -501,9 +535,11 @@ src/main/java/com/example/pcshop/
 - Xem danh sách sản phẩm với bộ lọc (category, giá, hãng)
 - Tìm kiếm sản phẩm theo tên
 - Xem chi tiết sản phẩm (thông số kỹ thuật, hình ảnh)
+- Xem đánh giá và điểm sao trung bình của sản phẩm
 - Thêm sản phẩm vào giỏ hàng (yêu cầu đăng nhập)
 - Đặt hàng với thanh toán COD
 - Xem lịch sử và trạng thái đơn hàng
+- Đánh giá sản phẩm (1–5 sao + nhận xét) sau khi đã mua hàng thành công
 - Sử dụng chatbot AI (không cần đăng nhập)
 
 ### Admin
@@ -511,6 +547,7 @@ src/main/java/com/example/pcshop/
 - Quản lý đơn hàng (xem, cập nhật trạng thái)
 - Tạo và quản lý PC Case (chọn linh kiện + kiểm tra ràng buộc)
 - Quản lý tài liệu RAG (upload, xem, xoá)
+- Xem thống kê số liệu: doanh thu theo thời gian, đơn hàng theo trạng thái, sản phẩm bán chạy, người dùng mới
 
 ### Chatbot AI
 - Trả lời câu hỏi về chính sách shop (RAG)
@@ -599,6 +636,8 @@ VITE_API_BASE_URL=http://localhost:8080/api
 - [ ] Implement Chatbot UI + API
 - [ ] Implement PC Config Suggestion (query DB + prompt Gemini)
 - [ ] Implement Image Upload (Cloudinary / S3)
+- [ ] Implement Product Reviews (API + UI — đánh giá, chấm sao)
+- [ ] Implement Admin Statistics Dashboard (API + UI — doanh thu, đơn hàng, top sản phẩm, người dùng mới)
 - [ ] Viết tài liệu API (Swagger / OpenAPI)
 - [ ] Kiểm thử & sửa lỗi
 
