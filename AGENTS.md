@@ -32,7 +32,7 @@
 │                                      │  └──────────────────┘  │ │
 │  ┌──────────────┐  ┌──────────────┐  │  ┌──────────────────┐  │ │
 │  │  Auth API    │  │ Admin API    │  │  │ PC Config Service│  │ │
-│  │ (JWT + RT)   │  │ (PC Case,    │  │  │ (query PC Cases) │  │ │
+│  │    (JWT)     │  │ (PC Case,    │  │  │ (query PC Cases) │  │ │
 │  └──────────────┘  │  RAG docs)   │  │  └──────────────────┘  │ │
 │                    └──────────────┘  │  ┌──────────────────┐  │ │
 │                                      │  │ Gemini API Call  │  │ │
@@ -66,8 +66,8 @@ Dự án được tổ chức thành **2 repo riêng biệt**:
 | Thành phần | Công nghệ |
 |-----------|-----------|
 | Framework | React (Vite + TypeScript) |
-| UI Library | *(tự chọn: Ant Design / MUI / Tailwind CSS)* |
-| State Management | *(tự chọn: Zustand / Redux Toolkit / Context API)* |
+| UI Library | Shadcn UI + Tailwind CSS |
+| State Management | Zustand |
 | HTTP Client | Axios |
 | Routing | React Router v6 |
 
@@ -98,7 +98,7 @@ Dự án được tổ chức thành **2 repo riêng biệt**:
 
 ### Cơ chế xác thực
 
-- **JWT + Refresh Token** (stateless)
+- **JWT** (stateless)
 - Access Token: thời gian sống ngắn (15–60 phút)
 - Refresh Token: thời gian sống dài (7–30 ngày), lưu HttpOnly cookie
 

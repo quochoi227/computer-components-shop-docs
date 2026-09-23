@@ -21,14 +21,14 @@
 | Xem chi tiết sản phẩm | Xem thông số kỹ thuật, hình ảnh, giá | `GET /api/products/{id}` |
 | Tìm kiếm / Lọc sản phẩm | Lọc theo category, giá; tìm theo tên | `GET /api/products?...` |
 | Đăng ký tài khoản | Tạo tài khoản mới | `POST /api/auth/register` |
-| Đăng nhập | Xác thực, nhận JWT + Refresh Token | `POST /api/auth/login` |
+| Đăng nhập | Xác thực, nhận JWT | `POST /api/auth/login` |
 | Sử dụng chatbot AI | Hỏi chính sách hoặc xin gợi ý cấu hình PC | `POST /api/chat` |
 
 ### User (thêm vào quyền Guest)
 
 | Use Case | Mô tả | Endpoint |
 |----------|-------|----------|
-| Đăng xuất | Thu hồi Refresh Token | `POST /api/auth/logout` |
+| Đăng xuất | Xóa JWT trong HttpOnly Cookie | `POST /api/auth/logout` |
 | Xem giỏ hàng | Danh sách sản phẩm trong giỏ | `GET /api/cart` |
 | Thêm vào giỏ hàng | Thêm sản phẩm vào giỏ | `POST /api/cart/items` |
 | Cập nhật số lượng | Thay đổi số lượng sản phẩm trong giỏ | `PUT /api/cart/items/{id}` |
