@@ -1,0 +1,161 @@
+erDiagram
+
+    %% =====================================================================
+    %% USERS
+    %% =====================================================================
+    users {
+        UUID id PK
+        VARCHAR email UK
+        VARCHAR password_hash
+        VARCHAR full_name
+        VARCHAR phone
+        TEXT address
+        ENUM role "USER | ADMIN"
+        TIMESTAMP created_at
+        TIMESTAMP updated_at
+    }
+
+    %% =====================================================================
+    %% PRODUCTS
+    %% =====================================================================
+    products {
+        UUID id PK
+        VARCHAR name
+        DECIMAL price
+        INT stock_quantity
+        ENUM category "CPU | MAINBOARD | RAM | GPU | STORAGE | PSU | CASE | CPU_COOLER"
+        VARCHAR image_url
+        TEXT description
+        JSONB detail
+        BOOLEAN is_active
+        TIMESTAMP created_at
+        TIMESTAMP updated_at
+    }
+
+    %% =====================================================================
+    %% ORDERS
+    %% =====================================================================
+    orders {
+        UUID id PK
+        UUID user_id FK
+        ENUM status "PENDING | CONFIRMED | SHIPPING | DELIVERED | CANCELLED"
+        ENUM payment_method "COD"
+        TEXT shipping_address
+        DECIMAL total_amount
+        TEXT note
+        TIMESTAMP created_at
+        TIMESTAMP updated_at
+    }
+
+    %% =====================================================================
+    %% ORDER ITEMS
+    %% =====================================================================
+    order_items {
+        UUID id PK
+        UUID order_id FK
+        UUID product_id FK
+        INT quantity
+        DECIMAL unit_price
+    }
+
+    %% =====================================================================
+    %% CART ITEMS
+    %% =====================================================================
+    cart_items {
+        UUID id PK
+        UUID user_id FK
+        UUID product_id FK
+        INT quantity
+    }
+
+    %% =====================================================================
+    %% PRODUCT REVIEWS
+    %% =====================================================================
+    product_reviews {
+        UUID id PK
+        UUID user_id FK
+        UUID product_id FK
+        SMALLINT rating "1–5"
+        TEXT comment
+        TIMESTAMP created_at
+        TIMESTAMP updated_at
+    }
+
+    %% =====================================================================
+    %% PC CASES
+    %% =====================================================================
+    pc_cases {
+        UUID id PK
+        VARCHAR name
+        VARCHAR use_case "gaming | study | office | rendering"
+        DECIMAL total_price
+        TEXT description
+        BOOLEAN is_active
+        TIMESTAMP created_at
+        TIMESTAMP updated_at
+    }
+
+    %% =====================================================================
+    %% PC CASE ITEMS
+    %% =====================================================================
+    pc_case_items {
+        UUID id PK
+        UUID pc_case_id FK
+        UUID product_id FK
+        ENUM category "CPU | MAINBOARD | RAM | GPU | STORAGE | PSU | CASE | CPU_COOLER"
+    }
+
+    %% =====================================================================
+    %% RAG DOCUMENTS
+    %% =====================================================================
+    rag_documents {
+        UUID id PK
+        VARCHAR title
+        VARCHAR source_file
+        TIMESTAMP created_at
+    }
+
+    %% =====================================================================
+    %% RAG CHUNKS
+    %% =====================================================================
+    rag_chunks {
+        UUID id PK
+        UUID document_id FK
+        TEXT content
+        VECTOR embedding "dim=768"
+        TIMESTAMP created_at
+    }
+
+    %% =====================================================================
+    %% RELATIONSHIPS
+    %% =====================================================================
+
+    %% User <-> Orders (1 user dat nhieu don hang)
+    users ||--o{ orders : "places"
+
+    %% Order <-> OrderItems (1 don co nhieu dong san pham)
+    orders ||--|{ order_items : "contains"
+
+    %% Product <-> OrderItems (1 san pham xuat hien trong nhieu dong don hang)
+    products ||--o{ order_items : "included in"
+
+    %% User <-> CartItems (1 user co nhieu san pham trong gio)
+    users ||--o{ cart_items : "has in cart"
+
+    %% Product <-> CartItems (1 san pham co the nam trong nhieu gio)
+    products ||--o{ cart_items : "added to cart"
+
+    %% User <-> ProductReviews (1 user danh gia nhieu san pham)
+    users ||--o{ product_reviews : "writes"
+
+    %% Product <-> ProductReviews (1 san pham nhan nhieu danh gia)
+    products ||--o{ product_reviews : "receives"
+
+    %% PcCase <-> PcCaseItems (1 PC Case gom nhieu linh kien)
+    pc_cases ||--|{ pc_case_items : "assembled from"
+
+    %% Product <-> PcCaseItems (1 san pham co the duoc dung trong nhieu PC Case)
+    products ||--o{ pc_case_items : "used in"
+
+    %% RagDocument <-> RagChunks (1 tai lieu chia thanh nhieu chunk)
+    rag_documents ||--|{ rag_chunks : "split into"

@@ -1,0 +1,555 @@
+classDiagram
+    direction TB
+
+    %% =========================================================
+    %% ENUMS
+    %% =========================================================
+
+    class UserRole {
+        <<enumeration>>
+        USER
+        ADMIN
+    }
+
+    class ProductCategory {
+        <<enumeration>>
+        CPU
+        MAINBOARD
+        RAM
+        GPU
+        STORAGE
+        PSU
+        CASE
+        CPU_COOLER
+    }
+
+    class OrderStatus {
+        <<enumeration>>
+        PENDING
+        CONFIRMED
+        SHIPPING
+        DELIVERED
+        CANCELLED
+    }
+
+    %% =========================================================
+    %% ENTITY LAYER
+    %% =========================================================
+
+    class User {
+        <<entity>>
+        -UUID id
+        -String email
+        -String passwordHash
+        -String fullName
+        -String phone
+        -String address
+        -UserRole role
+        -LocalDateTime createdAt
+        -LocalDateTime updatedAt
+    }
+
+    class Product {
+        <<entity>>
+        -UUID id
+        -String name
+        -BigDecimal price
+        -Integer stockQuantity
+        -ProductCategory category
+        -String imageUrl
+        -String description
+        -Map~String, Object~ detail
+        -Boolean isActive
+        -LocalDateTime createdAt
+        -LocalDateTime updatedAt
+    }
+
+    class Order {
+        <<entity>>
+        -UUID id
+        -UUID userId
+        -OrderStatus status
+        -String paymentMethod
+        -String shippingAddress
+        -BigDecimal totalAmount
+        -String note
+        -LocalDateTime createdAt
+        -LocalDateTime updatedAt
+    }
+
+    class OrderItem {
+        <<entity>>
+        -UUID id
+        -UUID orderId
+        -UUID productId
+        -Integer quantity
+        -BigDecimal unitPrice
+    }
+
+    class CartItem {
+        <<entity>>
+        -UUID id
+        -UUID userId
+        -UUID productId
+        -Integer quantity
+    }
+
+    class ProductReview {
+        <<entity>>
+        -UUID id
+        -UUID userId
+        -UUID productId
+        -Short rating
+        -String comment
+        -LocalDateTime createdAt
+        -LocalDateTime updatedAt
+    }
+
+    class PcCase {
+        <<entity>>
+        -UUID id
+        -String name
+        -String useCase
+        -BigDecimal totalPrice
+        -String description
+        -Boolean isActive
+        -LocalDateTime createdAt
+        -LocalDateTime updatedAt
+    }
+
+    class PcCaseItem {
+        <<entity>>
+        -UUID id
+        -UUID pcCaseId
+        -UUID productId
+        -ProductCategory category
+    }
+
+    class RagDocument {
+        <<entity>>
+        -UUID id
+        -String title
+        -String sourceFile
+        -LocalDateTime createdAt
+    }
+
+    class RagChunk {
+        <<entity>>
+        -UUID id
+        -UUID documentId
+        -String content
+        -float[] embedding
+        -LocalDateTime createdAt
+    }
+
+    %% Entity Associations
+    User "1" --> "0..*" Order : places
+    Order "1" *-- "1..*" OrderItem : contains
+    Product "1" --> "0..*" OrderItem : referenced by
+    User "1" --> "0..*" CartItem : has
+    Product "1" --> "0..*" CartItem : in cart
+    User "1" --> "0..*" ProductReview : writes
+    Product "1" --> "0..*" ProductReview : receives
+    PcCase "1" *-- "1..*" PcCaseItem : assembled from
+    Product "1" --> "0..*" PcCaseItem : used in
+    RagDocument "1" *-- "1..*" RagChunk : split into
+
+    %% Enum usage
+    User --> UserRole
+    Product --> ProductCategory
+    Order --> OrderStatus
+    PcCaseItem --> ProductCategory
+
+    %% =========================================================
+    %% REPOSITORY LAYER
+    %% =========================================================
+
+    class UserRepository {
+        <<interface>>
+        +findByEmail(String) Optional~User~
+        +existsByEmail(String) boolean
+    }
+
+    class ProductRepository {
+        <<interface>>
+        +findByCategory(ProductCategory) List~Product~
+        +findByNameContaining(String, Pageable) Page~Product~
+        +findByIsActiveTrue(Pageable) Page~Product~
+    }
+
+    class OrderRepository {
+        <<interface>>
+        +findByUserId(UUID) List~Order~
+        +findByStatus(OrderStatus) List~Order~
+        +sumRevenueByPeriod(String) BigDecimal
+    }
+
+    class CartItemRepository {
+        <<interface>>
+        +findByUserId(UUID) List~CartItem~
+        +findByUserIdAndProductId(UUID, UUID) Optional~CartItem~
+        +deleteByUserId(UUID) void
+    }
+
+    class ProductReviewRepository {
+        <<interface>>
+        +findByProductId(UUID) List~ProductReview~
+        +findByUserIdAndProductId(UUID, UUID) Optional~ProductReview~
+        +existsByUserIdAndProductId(UUID, UUID) boolean
+    }
+
+    class PcCaseRepository {
+        <<interface>>
+        +findByIsActiveTrue() List~PcCase~
+    }
+
+    class RagChunkRepository {
+        <<interface>>
+        +findTopKByEmbeddingSimilarity(float[], int) List~RagChunk~
+    }
+
+    %% Repository depends on Entity
+    UserRepository ..> User
+    ProductRepository ..> Product
+    OrderRepository ..> Order
+    CartItemRepository ..> CartItem
+    ProductReviewRepository ..> ProductReview
+    PcCaseRepository ..> PcCase
+    RagChunkRepository ..> RagChunk
+
+    %% =========================================================
+    %% DTO / VALUE OBJECTS
+    %% =========================================================
+
+    class ApiResponse~T~ {
+        <<DTO>>
+        -boolean success
+        -String message
+        -T data
+        +of(T data)$ ApiResponse~T~
+        +error(String message)$ ApiResponse~T~
+    }
+
+    class CompatibilityResult {
+        <<DTO>>
+        -boolean compatible
+        -List~String~ violations
+    }
+
+    class AuthResponse {
+        <<DTO>>
+        -String accessToken
+        -String tokenType
+        -UserRole role
+    }
+
+    class PcCaseRequest {
+        <<DTO>>
+        -String name
+        -String useCase
+        -UUID cpuId
+        -UUID mainboardId
+        -UUID ramId
+        -UUID gpuId
+        -UUID storageId
+        -UUID psuId
+        -UUID caseId
+        -UUID cpuCoolerId
+    }
+
+    %% =========================================================
+    %% SECURITY LAYER
+    %% =========================================================
+
+    class JwtUtil {
+        <<component>>
+        -String secretKey
+        -long accessTokenExpiry
+        -long refreshTokenExpiry
+        +generateAccessToken(UserDetails) String
+        +generateRefreshToken(UserDetails) String
+        +extractUsername(String) String
+        +validateToken(String, UserDetails) boolean
+        +isTokenExpired(String) boolean
+    }
+
+    class JwtAuthFilter {
+        <<component>>
+        -JwtUtil jwtUtil
+        -UserDetailsServiceImpl userDetailsService
+        +doFilterInternal(request, response, chain) void
+    }
+
+    class UserDetailsServiceImpl {
+        <<component>>
+        -UserRepository userRepository
+        +loadUserByUsername(String) UserDetails
+    }
+
+    JwtAuthFilter --> JwtUtil
+    JwtAuthFilter --> UserDetailsServiceImpl
+    UserDetailsServiceImpl ..> UserRepository
+
+    %% =========================================================
+    %% SERVICE LAYER
+    %% =========================================================
+
+    class AuthService {
+        <<service>>
+        -UserRepository userRepository
+        -JwtUtil jwtUtil
+        +register(RegisterRequest) AuthResponse
+        +login(LoginRequest) AuthResponse
+        +refreshToken(String) AuthResponse
+        +logout(String) void
+    }
+
+    class ProductService {
+        <<service>>
+        -ProductRepository productRepository
+        +getProducts(Pageable, filters) Page~ProductResponse~
+        +getProductById(UUID) ProductResponse
+        +createProduct(ProductRequest) ProductResponse
+        +updateProduct(UUID, ProductRequest) ProductResponse
+        +softDeleteProduct(UUID) void
+    }
+
+    class OrderService {
+        <<service>>
+        -OrderRepository orderRepository
+        -ProductRepository productRepository
+        +placeOrder(UUID, OrderRequest) OrderResponse
+        +getUserOrders(UUID) List~OrderResponse~
+        +getOrderById(UUID) OrderResponse
+        +cancelOrder(UUID, UUID) void
+        +updateOrderStatus(UUID, OrderStatus) OrderResponse
+        +getAllOrders() List~OrderResponse~
+    }
+
+    class CartService {
+        <<service>>
+        -CartItemRepository cartItemRepository
+        +getCart(UUID) List~CartItemResponse~
+        +addItem(UUID, CartItemRequest) void
+        +updateItem(UUID, int) void
+        +removeItem(UUID) void
+    }
+
+    class ReviewService {
+        <<service>>
+        -ProductReviewRepository reviewRepository
+        -OrderRepository orderRepository
+        +getProductReviews(UUID) List~ReviewResponse~
+        +createReview(UUID, UUID, ReviewRequest) ReviewResponse
+        +updateReview(UUID, UUID, ReviewRequest) ReviewResponse
+        +deleteReview(UUID, UUID) void
+        -verifyPurchase(UUID, UUID) boolean
+    }
+
+    class PcCaseService {
+        <<service>>
+        -PcCaseRepository pcCaseRepository
+        -ProductRepository productRepository
+        -CompatibilityCheckerService compatibilityChecker
+        +getPcCases() List~PcCaseResponse~
+        +createPcCase(PcCaseRequest) PcCaseResponse
+        +updatePcCase(UUID, PcCaseRequest) PcCaseResponse
+        +deletePcCase(UUID) void
+        +validatePcCase(PcCaseRequest) CompatibilityResult
+        -calculateTotalPrice(List~Product~) BigDecimal
+    }
+
+    class CompatibilityCheckerService {
+        <<service>>
+        +check(PcCaseRequest) CompatibilityResult
+        -checkSocketMatch(Product, Product) boolean
+        -checkMemoryType(Product, Product, Product) boolean
+        -checkFormFactor(Product, Product) boolean
+        -checkGpuLength(Product, Product) boolean
+        -checkCoolerHeight(Product, Product) boolean
+        -checkCoolerSocket(Product, Product) boolean
+        -checkPowerBudget(Product, Product, Product) boolean
+        -checkAllInStock(List~Product~) boolean
+    }
+
+    class ChatService {
+        <<service>>
+        -RagService ragService
+        -PcConfigSuggestionService pcConfigService
+        +chat(ChatRequest) ChatResponse
+        -isRagQuestion(String) boolean
+    }
+
+    class RagService {
+        <<service>>
+        -RagChunkRepository ragChunkRepository
+        +answer(String) String
+        +ingestDocument(MultipartFile, String) RagDocument
+        +listDocuments() List~RagDocumentResponse~
+        +deleteDocument(UUID) void
+        -embedText(String) float[]
+        -splitIntoChunks(String) List~String~
+        -findTopKChunks(float[]) List~RagChunk~
+        -buildPrompt(String, List~RagChunk~) String
+    }
+
+    class PcConfigSuggestionService {
+        <<service>>
+        -PcCaseRepository pcCaseRepository
+        +suggest(String) String
+        -fetchActivePcCases() List~PcCase~
+        -buildPrompt(String, List~PcCase~) String
+    }
+
+    class StatisticsService {
+        <<service>>
+        -OrderRepository orderRepository
+        -UserRepository userRepository
+        -ProductRepository productRepository
+        +getRevenue(String) RevenueResponse
+        +getOrderStats() OrderStatsResponse
+        +getTopProducts(int) List~TopProductResponse~
+        +getNewUsersStats(String) UserStatsResponse
+    }
+
+    %% Service -> Repository
+    AuthService ..> UserRepository
+    ProductService ..> ProductRepository
+    OrderService ..> OrderRepository
+    OrderService ..> ProductRepository
+    CartService ..> CartItemRepository
+    ReviewService ..> ProductReviewRepository
+    ReviewService ..> OrderRepository
+    PcCaseService ..> PcCaseRepository
+    PcCaseService ..> ProductRepository
+    RagService ..> RagChunkRepository
+    PcConfigSuggestionService ..> PcCaseRepository
+    StatisticsService ..> OrderRepository
+    StatisticsService ..> UserRepository
+    StatisticsService ..> ProductRepository
+
+    %% Service -> Service
+    ChatService --> RagService
+    ChatService --> PcConfigSuggestionService
+    PcCaseService --> CompatibilityCheckerService
+
+    %% Service -> DTO
+    AuthService ..> AuthResponse
+    PcCaseService ..> CompatibilityResult
+    CompatibilityCheckerService ..> CompatibilityResult
+
+    %% =========================================================
+    %% CONTROLLER LAYER
+    %% =========================================================
+
+    class AuthController {
+        <<controller>>
+        -AuthService authService
+        +register(RegisterRequest) ApiResponse~AuthResponse~
+        +login(LoginRequest) ApiResponse~AuthResponse~
+        +refresh(HttpRequest) ApiResponse~AuthResponse~
+        +logout(HttpRequest) ApiResponse~Void~
+    }
+
+    class ProductController {
+        <<controller>>
+        -ProductService productService
+        -ReviewService reviewService
+        +getProducts(filters) ApiResponse~Page~
+        +getProductById(UUID) ApiResponse~ProductResponse~
+        +getProductReviews(UUID) ApiResponse~List~
+        +createReview(UUID, ReviewRequest) ApiResponse~ReviewResponse~
+        +updateReview(UUID, UUID, ReviewRequest) ApiResponse~ReviewResponse~
+        +deleteReview(UUID, UUID) ApiResponse~Void~
+    }
+
+    class OrderController {
+        <<controller>>
+        -OrderService orderService
+        +getMyOrders() ApiResponse~List~
+        +getOrderById(UUID) ApiResponse~OrderResponse~
+        +placeOrder(OrderRequest) ApiResponse~OrderResponse~
+        +cancelOrder(UUID) ApiResponse~Void~
+    }
+
+    class CartController {
+        <<controller>>
+        -CartService cartService
+        +getCart() ApiResponse~List~
+        +addItem(CartItemRequest) ApiResponse~Void~
+        +updateItem(UUID, int) ApiResponse~Void~
+        +removeItem(UUID) ApiResponse~Void~
+    }
+
+    class ChatController {
+        <<controller>>
+        -ChatService chatService
+        +chat(ChatRequest) ApiResponse~ChatResponse~
+    }
+
+    class AdminProductController {
+        <<controller>>
+        -ProductService productService
+        +createProduct(ProductRequest) ApiResponse~ProductResponse~
+        +updateProduct(UUID, ProductRequest) ApiResponse~ProductResponse~
+        +deleteProduct(UUID) ApiResponse~Void~
+    }
+
+    class AdminOrderController {
+        <<controller>>
+        -OrderService orderService
+        +getAllOrders() ApiResponse~List~
+        +updateOrderStatus(UUID, OrderStatus) ApiResponse~OrderResponse~
+    }
+
+    class AdminPcCaseController {
+        <<controller>>
+        -PcCaseService pcCaseService
+        +getPcCases() ApiResponse~List~
+        +createPcCase(PcCaseRequest) ApiResponse~PcCaseResponse~
+        +updatePcCase(UUID, PcCaseRequest) ApiResponse~PcCaseResponse~
+        +deletePcCase(UUID) ApiResponse~Void~
+        +validatePcCase(PcCaseRequest) ApiResponse~CompatibilityResult~
+    }
+
+    class AdminRagController {
+        <<controller>>
+        -RagService ragService
+        +uploadDocument(MultipartFile) ApiResponse~RagDocumentResponse~
+        +listDocuments() ApiResponse~List~
+        +deleteDocument(UUID) ApiResponse~Void~
+    }
+
+    class AdminStatisticsController {
+        <<controller>>
+        -StatisticsService statisticsService
+        +getRevenue(String) ApiResponse~RevenueResponse~
+        +getOrderStats() ApiResponse~OrderStatsResponse~
+        +getTopProducts(int) ApiResponse~List~
+        +getNewUsersStats(String) ApiResponse~UserStatsResponse~
+    }
+
+    %% Controller -> Service
+    AuthController --> AuthService
+    ProductController --> ProductService
+    ProductController --> ReviewService
+    OrderController --> OrderService
+    CartController --> CartService
+    ChatController --> ChatService
+    AdminProductController --> ProductService
+    AdminOrderController --> OrderService
+    AdminPcCaseController --> PcCaseService
+    AdminRagController --> RagService
+    AdminStatisticsController --> StatisticsService
+
+    %% All controllers return ApiResponse
+    AuthController ..> ApiResponse~T~
+    ProductController ..> ApiResponse~T~
+    OrderController ..> ApiResponse~T~
+    CartController ..> ApiResponse~T~
+    ChatController ..> ApiResponse~T~
+    AdminProductController ..> ApiResponse~T~
+    AdminOrderController ..> ApiResponse~T~
+    AdminPcCaseController ..> ApiResponse~T~
+    AdminRagController ..> ApiResponse~T~
+    AdminStatisticsController ..> ApiResponse~T~

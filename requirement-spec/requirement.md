@@ -410,10 +410,10 @@ Hệ thống kết nối và tương tác chặt chẽ với các thành phần 
 
 2. **Dịch vụ trí tuệ nhân tạo Google Gemini API**:
    - **Mô hình nhúng ngữ nghĩa (Gemini Embedding API)**:
-     - Model: `text-embedding-004` (hoặc `embedding-001`).
+     - Model: `gemini-embedding-2`.
      - Mục đích: Tiếp nhận các chuỗi văn bản (chunks tài liệu chính sách hoặc câu hỏi của người dùng) qua HTTPS POST và trả về mảng số thực 768 chiều.
    - **Mô hình ngôn ngữ lớn (Gemini Generative Chat API)**:
-     - Model: `gemini-1.5-flash` hoặc `gemini-1.5-pro`.
+     - Model: `gemini-3.5-flash-lite`.
      - Mục đích: Xử lý prompt bao gồm System Instruction, Context ngữ cảnh (từ RAG hoặc dữ liệu PC Case) và tin nhắn của người dùng; sinh câu trả lời tự nhiên hỗ trợ khách hàng.
    - **Phương thức kết nối**: Gọi REST API qua HTTPS sử dụng WebClient / RestTemplate hoặc Google GenAI Java SDK.
 
