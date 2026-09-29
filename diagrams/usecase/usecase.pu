@@ -48,8 +48,8 @@ package "Giỏ hàng & Đặt hàng" {
 
 package "Chatbot AI" {
   usecase "Gửi tin nhắn\ncho chatbot" as UC_Chat
-  usecase "Hỏi về chính sách shop\n(RAG)" as UC_AskPolicy
-  usecase "Yêu cầu gợi ý\ncấu hình PC" as UC_AskPCConfig
+  usecase "Trả lời chính sách shop\n(RAG)" as UC_AnswerPolicy
+  usecase "Gợi ý\ncấu hình PC" as UC_SuggestPCConfig
 }
 
 package "Quản lý sản phẩm (Admin)" {
@@ -132,12 +132,10 @@ Admin --> UC_StatTopProducts
 Admin --> UC_StatUsers
 
 ' ===== INCLUDE / EXTEND =====
-UC_Chat ..> UC_AskPolicy    : <<extend>>
-UC_Chat ..> UC_AskPCConfig  : <<extend>>
+UC_AnswerPolicy ..> UC_Chat : <<extend>>
+UC_SuggestPCConfig ..> UC_Chat : <<extend>>
 
 UC_CreateProduct ..> UC_UploadImage : <<include>>
-
-UC_SearchProducts ..> UC_FilterProducts : <<extend>>
 
 UC_CreatePCCase ..> UC_CheckCompatibility : <<include>>
 UC_UpdatePCCase ..> UC_CheckCompatibility : <<include>>
@@ -151,7 +149,7 @@ UC_StatRevenue ..> UC_StatOrders : <<include>>
 UC_StatTopProducts ..> UC_StatOrders : <<include>>
 
 ' ===== GEMINI AI =====
-GeminiAI --> UC_AskPolicy
-GeminiAI --> UC_AskPCConfig
+GeminiAI --> UC_AnswerPolicy
+GeminiAI --> UC_SuggestPCConfig
 
 @enduml
