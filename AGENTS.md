@@ -82,6 +82,7 @@ Dự án được tổ chức thành **2 repo riêng biệt**:
 | Vector Search | pgvector extension |
 | AI Provider | Google Gemini API |
 | Image Storage | Cloudinary |
+| Email Service | Resend (xác thực email, đặt lại mật khẩu) |
 | Build Tool | Maven |
 
 ---
@@ -150,7 +151,7 @@ orders (
   updated_at TIMESTAMP
 )
 
--- Chi tiết đơn hàng
+-- Chi tiết đơn hàng — linh kiện lẻ
 order_items (
   id UUID PRIMARY KEY,
   order_id UUID REFERENCES orders(id),
@@ -159,7 +160,16 @@ order_items (
   unit_price DECIMAL(15, 2) NOT NULL  -- Giá tại thời điểm đặt hàng
 )
 
--- Giỏ hàng
+-- Chi tiết đơn hàng — cấu hình PC
+pc_case_order_items (
+  id UUID PRIMARY KEY,
+  order_id UUID REFERENCES orders(id),
+  pc_case_id UUID REFERENCES pc_cases(id),
+  quantity INT NOT NULL,
+  unit_price DECIMAL(15, 2) NOT NULL  -- Tổng giá PC Case tại thời điểm đặt hàng
+)
+
+-- Giỏ hàng — linh kiện lẻ
 cart_items (
   id UUID PRIMARY KEY,
   user_id UUID REFERENCES users(id),
@@ -168,7 +178,16 @@ cart_items (
   UNIQUE(user_id, product_id)
 )
 
--- Đánh giá sản phẩm
+-- Giỏ hàng — cấu hình PC
+pc_case_cart_items (
+  id UUID PRIMARY KEY,
+  user_id UUID REFERENCES users(id),
+  pc_case_id UUID REFERENCES pc_cases(id),
+  quantity INT NOT NULL DEFAULT 1,
+  UNIQUE(user_id, pc_case_id)
+)
+
+-- Đánh giá linh kiện
 product_reviews (
   id UUID PRIMARY KEY,
   user_id UUID REFERENCES users(id),
@@ -178,6 +197,38 @@ product_reviews (
   created_at TIMESTAMP,
   updated_at TIMESTAMP,
   UNIQUE(user_id, product_id)   -- Mỗi user chỉ đánh giá 1 lần / sản phẩm
+)
+
+-- Đánh giá cấu hình PC
+pc_case_reviews (
+  id UUID PRIMARY KEY,
+  user_id UUID REFERENCES users(id),
+  pc_case_id UUID REFERENCES pc_cases(id),
+  rating SMALLINT NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  comment TEXT,
+  created_at TIMESTAMP,
+  updated_at TIMESTAMP,
+  UNIQUE(user_id, pc_case_id)   -- Mỗi user chỉ đánh giá 1 lần / PC Case
+)
+
+-- Token xác thực email (gửi qua Resend khi đăng ký)
+email_verification_tokens (
+  id UUID PRIMARY KEY,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  token VARCHAR NOT NULL UNIQUE,   -- UUID hoặc signed token
+  expires_at TIMESTAMP NOT NULL,   -- Thường 24 giờ
+  used BOOLEAN DEFAULT FALSE,      -- Đánh dấu đã dùng để tránh dùng lại
+  created_at TIMESTAMP
+)
+
+-- Token đặt lại mật khẩu (gửi qua Resend khi quên mật khẩu)
+password_reset_tokens (
+  id UUID PRIMARY KEY,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  token VARCHAR NOT NULL UNIQUE,   -- UUID hoặc signed token
+  expires_at TIMESTAMP NOT NULL,   -- Thường 1 giờ
+  used BOOLEAN DEFAULT FALSE,      -- Đánh dấu đã dùng để tránh dùng lại
+  created_at TIMESTAMP
 )
 ```
 
@@ -384,10 +435,14 @@ Gemini trả về: Giải thích + gợi ý 1–3 PC Case phù hợp nhất
 ### Authentication
 | Method | Endpoint | Mô tả | Auth |
 |--------|----------|-------|------|
-| POST | `/api/auth/register` | Đăng ký tài khoản | Public |
-| POST | `/api/auth/login` | Đăng nhập | Public |
+| POST | `/api/auth/register` | Đăng ký tài khoản (gửi email xác thực qua Resend) | Public |
+| POST | `/api/auth/login` | Đăng nhập (yêu cầu email đã xác thực) | Public |
 | POST | `/api/auth/refresh` | Làm mới Access Token | Refresh Token |
 | POST | `/api/auth/logout` | Đăng xuất | User |
+| GET | `/api/auth/verify-email` | Xác thực email qua link (`?token=...`) | Public |
+| POST | `/api/auth/resend-verification` | Gửi lại email xác thực | Public |
+| POST | `/api/auth/forgot-password` | Yêu cầu đặt lại mật khẩu (gửi link qua Resend) | Public |
+| POST | `/api/auth/reset-password` | Đặt lại mật khẩu bằng token từ email | Public |
 
 ### Products
 | Method | Endpoint | Mô tả | Auth |
@@ -411,15 +466,30 @@ Gemini trả về: Giải thích + gợi ý 1–3 PC Case phù hợp nhất
 ### Cart
 | Method | Endpoint | Mô tả | Auth |
 |--------|----------|-------|------|
-| GET | `/api/cart` | Xem giỏ hàng | User |
-| POST | `/api/cart/items` | Thêm sản phẩm vào giỏ | User |
-| PUT | `/api/cart/items/{id}` | Cập nhật số lượng | User |
-| DELETE | `/api/cart/items/{id}` | Xoá sản phẩm khỏi giỏ | User |
+| GET | `/api/cart` | Xem toàn bộ giỏ hàng (linh kiện + PC Case) | User |
+| POST | `/api/cart/items` | Thêm linh kiện vào giỏ | User |
+| PUT | `/api/cart/items/{id}` | Cập nhật số lượng linh kiện trong giỏ | User |
+| DELETE | `/api/cart/items/{id}` | Xoá linh kiện khỏi giỏ | User |
+| POST | `/api/cart/pc-cases` | Thêm PC Case vào giỏ | User |
+| PUT | `/api/cart/pc-cases/{id}` | Cập nhật số lượng PC Case trong giỏ | User |
+| DELETE | `/api/cart/pc-cases/{id}` | Xoá PC Case khỏi giỏ | User |
 
-### PC Cases (Admin)
+### Orders
 | Method | Endpoint | Mô tả | Auth |
 |--------|----------|-------|------|
-| GET | `/api/admin/pc-cases` | Danh sách PC Case | Admin |
+| GET | `/api/orders` | Lịch sử đơn hàng của user hiện tại | User |
+| GET | `/api/orders/{id}` | Chi tiết đơn hàng (gồm cả linh kiện lẻ và PC Case) | User |
+| POST | `/api/orders` | Tạo đơn hàng mới (có thể gồm linh kiện lẻ, PC Case, hoặc cả hai) | User |
+| PUT | `/api/orders/{id}/cancel` | Huỷ đơn hàng | User |
+| GET | `/api/admin/orders` | Tất cả đơn hàng | Admin |
+| PUT | `/api/admin/orders/{id}/status` | Cập nhật trạng thái đơn hàng | Admin |
+
+### PC Cases (Public + Admin)
+| Method | Endpoint | Mô tả | Auth |
+|--------|----------|-------|------|
+| GET | `/api/pc-cases` | Danh sách PC Case đang hoạt động (cho user xem & mua) | Public |
+| GET | `/api/pc-cases/{id}` | Chi tiết PC Case kèm danh sách linh kiện | Public |
+| GET | `/api/admin/pc-cases` | Danh sách tất cả PC Case (kể cả ẩn) | Admin |
 | POST | `/api/admin/pc-cases` | Tạo PC Case mới + kiểm tra ràng buộc | Admin |
 | PUT | `/api/admin/pc-cases/{id}` | Cập nhật PC Case | Admin |
 | DELETE | `/api/admin/pc-cases/{id}` | Xoá PC Case | Admin |
@@ -433,13 +503,21 @@ Gemini trả về: Giải thích + gợi ý 1–3 PC Case phù hợp nhất
 | GET | `/api/admin/rag/documents` | Danh sách tài liệu RAG | Admin |
 | DELETE | `/api/admin/rag/documents/{id}` | Xoá tài liệu RAG | Admin |
 
-### Reviews (Đánh giá sản phẩm)
+### Reviews — Linh kiện
 | Method | Endpoint | Mô tả | Auth |
 |--------|----------|-------|------|
-| GET | `/api/products/{id}/reviews` | Xem tất cả đánh giá của sản phẩm | Public |
-| POST | `/api/products/{id}/reviews` | Viết đánh giá cho sản phẩm (đã mua) | User |
-| PUT | `/api/products/{id}/reviews/{reviewId}` | Cập nhật đánh giá của mình | User |
-| DELETE | `/api/products/{id}/reviews/{reviewId}` | Xoá đánh giá của mình | User |
+| GET | `/api/products/{id}/reviews` | Xem tất cả đánh giá của linh kiện | Public |
+| POST | `/api/products/{id}/reviews` | Viết đánh giá cho linh kiện (đã mua) | User |
+| PUT | `/api/products/{id}/reviews/{reviewId}` | Cập nhật đánh giá linh kiện của mình | User |
+| DELETE | `/api/products/{id}/reviews/{reviewId}` | Xoá đánh giá linh kiện của mình | User |
+
+### Reviews — PC Case
+| Method | Endpoint | Mô tả | Auth |
+|--------|----------|-------|------|
+| GET | `/api/pc-cases/{id}/reviews` | Xem tất cả đánh giá của PC Case | Public |
+| POST | `/api/pc-cases/{id}/reviews` | Viết đánh giá cho PC Case (đã mua) | User |
+| PUT | `/api/pc-cases/{id}/reviews/{reviewId}` | Cập nhật đánh giá PC Case của mình | User |
+| DELETE | `/api/pc-cases/{id}/reviews/{reviewId}` | Xoá đánh giá PC Case của mình | User |
 
 ### Statistics (Admin)
 | Method | Endpoint | Mô tả | Auth |
@@ -614,6 +692,14 @@ cloudinary.api-secret: <api-secret>
 # pgvector
 pgvector.embedding-dimension: 768
 pgvector.top-k: 5
+
+# Resend (Email Service)
+resend.api-key: <resend-api-key>
+resend.from-email: noreply@yourdomain.com
+
+# Email token expiry
+app.email-verification-token-expiry-hours: 24
+app.password-reset-token-expiry-hours: 1
 ```
 
 ### Frontend (`.env`)
@@ -629,6 +715,8 @@ VITE_API_BASE_URL=http://localhost:8080/api
 - [ ] Khởi tạo project React + Vite (Frontend)
 - [ ] Cấu hình PostgreSQL + pgvector
 - [ ] Implement Auth (JWT + Refresh Token)
+- [ ] Implement Email Verification (Resend — gửi link xác thực khi đăng ký)
+- [ ] Implement Password Reset (Resend — gửi link đặt lại mật khẩu)
 - [ ] Implement CRUD Products (API + UI)
 - [ ] Implement Cart & Order (API + UI)
 - [ ] Implement PC Case management + Compatibility Checker

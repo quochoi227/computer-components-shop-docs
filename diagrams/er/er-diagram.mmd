@@ -48,7 +48,7 @@ erDiagram
     }
 
     %% =====================================================================
-    %% ORDER ITEMS
+    %% ORDER ITEMS — san pham linh kien trong don hang
     %% =====================================================================
     order_items {
         UUID id PK
@@ -59,7 +59,18 @@ erDiagram
     }
 
     %% =====================================================================
-    %% CART ITEMS
+    %% PC CASE ORDER ITEMS — cau hinh PC trong don hang
+    %% =====================================================================
+    pc_case_order_items {
+        UUID id PK
+        UUID order_id FK
+        UUID pc_case_id FK
+        INT quantity
+        DECIMAL unit_price "Gia PC Case tai thoi diem dat hang"
+    }
+
+    %% =====================================================================
+    %% CART ITEMS — gio hang linh kien
     %% =====================================================================
     cart_items {
         UUID id PK
@@ -69,13 +80,36 @@ erDiagram
     }
 
     %% =====================================================================
-    %% PRODUCT REVIEWS
+    %% PC CASE CART ITEMS — gio hang cau hinh PC
+    %% =====================================================================
+    pc_case_cart_items {
+        UUID id PK
+        UUID user_id FK
+        UUID pc_case_id FK
+        INT quantity
+    }
+
+    %% =====================================================================
+    %% PRODUCT REVIEWS — danh gia linh kien
     %% =====================================================================
     product_reviews {
         UUID id PK
         UUID user_id FK
         UUID product_id FK
-        SMALLINT rating "1–5"
+        SMALLINT rating "1-5"
+        TEXT comment
+        TIMESTAMP created_at
+        TIMESTAMP updated_at
+    }
+
+    %% =====================================================================
+    %% PC CASE REVIEWS — danh gia cau hinh PC
+    %% =====================================================================
+    pc_case_reviews {
+        UUID id PK
+        UUID user_id FK
+        UUID pc_case_id FK
+        SMALLINT rating "1-5"
         TEXT comment
         TIMESTAMP created_at
         TIMESTAMP updated_at
@@ -96,7 +130,7 @@ erDiagram
     }
 
     %% =====================================================================
-    %% PC CASE ITEMS
+    %% PC CASE ITEMS — thanh phan linh kien cua PC Case
     %% =====================================================================
     pc_case_items {
         UUID id PK
@@ -130,32 +164,86 @@ erDiagram
     %% RELATIONSHIPS
     %% =====================================================================
 
-    %% User <-> Orders (1 user dat nhieu don hang)
+    %% --- Orders ---
+    %% User dat nhieu don hang
     users ||--o{ orders : "places"
 
-    %% Order <-> OrderItems (1 don co nhieu dong san pham)
-    orders ||--|{ order_items : "contains"
+    %% Don hang chua linh kien rieng le
+    orders ||--o{ order_items : "contains product"
 
-    %% Product <-> OrderItems (1 san pham xuat hien trong nhieu dong don hang)
+    %% Don hang chua cau hinh PC
+    orders ||--o{ pc_case_order_items : "contains pc case"
+
+    %% Linh kien xuat hien trong nhieu dong don hang
     products ||--o{ order_items : "included in"
 
-    %% User <-> CartItems (1 user co nhieu san pham trong gio)
-    users ||--o{ cart_items : "has in cart"
+    %% PC Case xuat hien trong nhieu dong don hang
+    pc_cases ||--o{ pc_case_order_items : "included in"
 
-    %% Product <-> CartItems (1 san pham co the nam trong nhieu gio)
+    %% --- Cart ---
+    %% User co nhieu linh kien trong gio
+    users ||--o{ cart_items : "adds product to cart"
+
+    %% User co nhieu cau hinh PC trong gio
+    users ||--o{ pc_case_cart_items : "adds pc case to cart"
+
+    %% Linh kien nam trong nhieu gio hang
     products ||--o{ cart_items : "added to cart"
 
-    %% User <-> ProductReviews (1 user danh gia nhieu san pham)
-    users ||--o{ product_reviews : "writes"
+    %% PC Case nam trong nhieu gio hang
+    pc_cases ||--o{ pc_case_cart_items : "added to cart"
 
-    %% Product <-> ProductReviews (1 san pham nhan nhieu danh gia)
-    products ||--o{ product_reviews : "receives"
+    %% --- Reviews ---
+    %% User danh gia linh kien
+    users ||--o{ product_reviews : "reviews product"
 
-    %% PcCase <-> PcCaseItems (1 PC Case gom nhieu linh kien)
+    %% User danh gia cau hinh PC
+    users ||--o{ pc_case_reviews : "reviews pc case"
+
+    %% Linh kien nhan nhieu danh gia
+    products ||--o{ product_reviews : "receives review"
+
+    %% PC Case nhan nhieu danh gia
+    pc_cases ||--o{ pc_case_reviews : "receives review"
+
+    %% --- PC Case composition ---
+    %% PC Case gom nhieu linh kien
     pc_cases ||--|{ pc_case_items : "assembled from"
 
-    %% Product <-> PcCaseItems (1 san pham co the duoc dung trong nhieu PC Case)
+    %% Linh kien duoc dung trong nhieu PC Case
     products ||--o{ pc_case_items : "used in"
 
-    %% RagDocument <-> RagChunks (1 tai lieu chia thanh nhieu chunk)
+    %% --- RAG ---
+    %% Tai lieu chia thanh nhieu chunk
     rag_documents ||--|{ rag_chunks : "split into"
+
+    %% =====================================================================
+    %% EMAIL VERIFICATION TOKENS
+    %% =====================================================================
+    email_verification_tokens {
+        UUID id PK
+        UUID user_id FK
+        VARCHAR token UK
+        TIMESTAMP expires_at
+        BOOLEAN used
+        TIMESTAMP created_at
+    }
+
+    %% =====================================================================
+    %% PASSWORD RESET TOKENS
+    %% =====================================================================
+    password_reset_tokens {
+        UUID id PK
+        UUID user_id FK
+        VARCHAR token UK
+        TIMESTAMP expires_at
+        BOOLEAN used
+        TIMESTAMP created_at
+    }
+
+    %% --- Email / Password tokens ---
+    %% 1 user co the co nhieu token xac thuc email (gui lai nhieu lan)
+    users ||--o{ email_verification_tokens : "verifies with"
+
+    %% 1 user co the co nhieu token dat lai mat khau
+    users ||--o{ password_reset_tokens : "resets password with"
