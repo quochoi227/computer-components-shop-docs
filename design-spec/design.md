@@ -215,10 +215,10 @@ Kiến trúc và giải pháp công nghệ của hệ thống được lựa ch�
 ## Mô tả dữ liệu
 
 ### 1. Chiến lược tổ chức và lưu trữ dữ liệu
-Miền thông tin của hệ thống được mô hình hóa và lưu trữ tập trung trên hệ quản trị cơ sở dữ liệu **PostgreSQL 15+** kết hợp tiện ích mở rộng **pgvector**, phân bổ theo 3 hình thức lưu trữ tối ưu cho đề tài học tập:
+Miền thông tin của hệ thống được mô hình hóa và lưu trữ tập trung trên hệ quản trị cơ sở dữ liệu **PostgreSQL 15+** kết hợp tiện ích mở rộng **pgvector**, phân bổ theo các hình thức lưu trữ tối ưu cho đề tài học tập:
 
 1. **Dữ liệu quan hệ chuẩn (Relational Tables)**:
-   - Quản lý các đối tượng kinh doanh cốt lõi: tài khoản người dùng (`users`), đơn hàng (`orders`, `order_items`), giỏ hàng (`cart_items`), đánh giá (`product_reviews`) và cấu hình máy tính (`pc_cases`, `pc_case_items`).
+   - Quản lý các đối tượng kinh doanh cốt lõi: tài khoản người dùng (`users`), xác thực và đặt lại mật khẩu (`email_verification_tokens`, `password_reset_tokens`), đơn hàng linh kiện lẻ và cấu hình PC (`orders`, `order_items`, `pc_case_order_items`), giỏ hàng (`cart_items`, `pc_case_cart_items`), đánh giá (`product_reviews`, `pc_case_reviews`) và cấu hình máy tính (`pc_cases`, `pc_case_items`).
    - Các bảng được chuẩn hóa (3NF), thiết lập khóa chính (UUID), khóa ngoại và các ràng buộc toàn vẹn nhằm đảm bảo tính nhất quán dữ liệu.
 2. **Dữ liệu bán cấu trúc (Semi-structured Data - JSONB)**:
    - Bảng sản phẩm (`products`) sử dụng cột `detail` kiểu `JSONB` để lưu trữ các thông số kỹ thuật đặc thù của từng loại linh kiện (CPU, RAM, Mainboard, GPU...).
@@ -233,6 +233,10 @@ Miền thông tin của hệ thống được mô hình hóa và lưu trữ tậ
 
 ```mermaid
 erDiagram
+
+    %% =====================================================================
+    %% USERS
+    %% =====================================================================
     users {
         UUID id PK
         VARCHAR email UK
@@ -245,6 +249,9 @@ erDiagram
         TIMESTAMP updated_at
     }
 
+    %% =====================================================================
+    %% PRODUCTS
+    %% =====================================================================
     products {
         UUID id PK
         VARCHAR name
@@ -259,6 +266,9 @@ erDiagram
         TIMESTAMP updated_at
     }
 
+    %% =====================================================================
+    %% ORDERS
+    %% =====================================================================
     orders {
         UUID id PK
         UUID user_id FK
@@ -271,6 +281,9 @@ erDiagram
         TIMESTAMP updated_at
     }
 
+    %% =====================================================================
+    %% ORDER ITEMS — san pham linh kien trong don hang
+    %% =====================================================================
     order_items {
         UUID id PK
         UUID order_id FK
@@ -279,6 +292,20 @@ erDiagram
         DECIMAL unit_price
     }
 
+    %% =====================================================================
+    %% PC CASE ORDER ITEMS — cau hinh PC trong don hang
+    %% =====================================================================
+    pc_case_order_items {
+        UUID id PK
+        UUID order_id FK
+        UUID pc_case_id FK
+        INT quantity
+        DECIMAL unit_price "Gia PC Case tai thoi diem dat hang"
+    }
+
+    %% =====================================================================
+    %% CART ITEMS — gio hang linh kien
+    %% =====================================================================
     cart_items {
         UUID id PK
         UUID user_id FK
@@ -286,6 +313,19 @@ erDiagram
         INT quantity
     }
 
+    %% =====================================================================
+    %% PC CASE CART ITEMS — gio hang cau hinh PC
+    %% =====================================================================
+    pc_case_cart_items {
+        UUID id PK
+        UUID user_id FK
+        UUID pc_case_id FK
+        INT quantity
+    }
+
+    %% =====================================================================
+    %% PRODUCT REVIEWS — danh gia linh kien
+    %% =====================================================================
     product_reviews {
         UUID id PK
         UUID user_id FK
@@ -296,10 +336,26 @@ erDiagram
         TIMESTAMP updated_at
     }
 
+    %% =====================================================================
+    %% PC CASE REVIEWS — danh gia cau hinh PC
+    %% =====================================================================
+    pc_case_reviews {
+        UUID id PK
+        UUID user_id FK
+        UUID pc_case_id FK
+        SMALLINT rating "1-5"
+        TEXT comment
+        TIMESTAMP created_at
+        TIMESTAMP updated_at
+    }
+
+    %% =====================================================================
+    %% PC CASES
+    %% =====================================================================
     pc_cases {
         UUID id PK
         VARCHAR name
-        VARCHAR use_case
+        VARCHAR use_case "gaming | study | office | rendering"
         DECIMAL total_price
         TEXT description
         BOOLEAN is_active
@@ -307,13 +363,19 @@ erDiagram
         TIMESTAMP updated_at
     }
 
+    %% =====================================================================
+    %% PC CASE ITEMS — thanh phan linh kien cua PC Case
+    %% =====================================================================
     pc_case_items {
         UUID id PK
         UUID pc_case_id FK
         UUID product_id FK
-        ENUM category
+        ENUM category "CPU | MAINBOARD | RAM | GPU | STORAGE | PSU | CASE | CPU_COOLER"
     }
 
+    %% =====================================================================
+    %% RAG DOCUMENTS
+    %% =====================================================================
     rag_documents {
         UUID id PK
         VARCHAR title
@@ -321,6 +383,9 @@ erDiagram
         TIMESTAMP created_at
     }
 
+    %% =====================================================================
+    %% RAG CHUNKS
+    %% =====================================================================
     rag_chunks {
         UUID id PK
         UUID document_id FK
@@ -329,47 +394,106 @@ erDiagram
         TIMESTAMP created_at
     }
 
+    %% =====================================================================
+    %% RELATIONSHIPS
+    %% =====================================================================
+
+    %% --- Orders ---
     users ||--o{ orders : "places"
-    orders ||--|{ order_items : "contains"
+    orders ||--o{ order_items : "contains product"
+    orders ||--o{ pc_case_order_items : "contains pc case"
     products ||--o{ order_items : "included in"
-    users ||--o{ cart_items : "has in cart"
+    pc_cases ||--o{ pc_case_order_items : "included in"
+
+    %% --- Cart ---
+    users ||--o{ cart_items : "adds product to cart"
+    users ||--o{ pc_case_cart_items : "adds pc case to cart"
     products ||--o{ cart_items : "added to cart"
-    users ||--o{ product_reviews : "writes"
-    products ||--o{ product_reviews : "receives"
+    pc_cases ||--o{ pc_case_cart_items : "added to cart"
+
+    %% --- Reviews ---
+    users ||--o{ product_reviews : "reviews product"
+    users ||--o{ pc_case_reviews : "reviews pc case"
+    products ||--o{ product_reviews : "receives review"
+    pc_cases ||--o{ pc_case_reviews : "receives review"
+
+    %% --- PC Case composition ---
     pc_cases ||--|{ pc_case_items : "assembled from"
     products ||--o{ pc_case_items : "used in"
+
+    %% --- RAG ---
     rag_documents ||--|{ rag_chunks : "split into"
+
+    %% =====================================================================
+    %% EMAIL VERIFICATION TOKENS
+    %% =====================================================================
+    email_verification_tokens {
+        UUID id PK
+        UUID user_id FK
+        VARCHAR token UK
+        TIMESTAMP expires_at
+        BOOLEAN used
+        TIMESTAMP created_at
+    }
+
+    %% =====================================================================
+    %% PASSWORD RESET TOKENS
+    %% =====================================================================
+    password_reset_tokens {
+        UUID id PK
+        UUID user_id FK
+        VARCHAR token UK
+        TIMESTAMP expires_at
+        BOOLEAN used
+        TIMESTAMP created_at
+    }
+
+    %% --- Email / Password tokens ---
+    users ||--o{ email_verification_tokens : "verifies with"
+    users ||--o{ password_reset_tokens : "resets password with"
 ```
 
 ---
 
 ## Từ điển dữ liệu
 
-Dưới đây là từ điển dữ liệu của 10 thực thể (bảng) trong hệ thống, được sắp xếp theo thứ tự bảng chữ cái:
+Dưới đây là từ điển dữ liệu của 15 thực thể (bảng) trong hệ thống, được sắp xếp theo thứ tự bảng chữ cái:
 
-### 1. Thực thể `cart_items` (Chi tiết giỏ hàng)
-Lưu thông tin sản phẩm trong giỏ hàng của từng người dùng. Khóa duy nhất (Unique constraint) trên cặp `(user_id, product_id)`.
+### 1. Thực thể `cart_items` (Giỏ hàng linh kiện lẻ)
+Lưu thông tin các linh kiện máy tính lẻ trong giỏ hàng của từng người dùng. Khóa duy nhất (UNIQUE) trên cặp `(user_id, product_id)`.
 
 | Tên thuộc tính | Kiểu dữ liệu | Ràng buộc | Mô tả |
 | :--- | :--- | :--- | :--- |
 | `id` | UUID | PK, NOT NULL | Mã định danh duy nhất của dòng giỏ hàng |
 | `user_id` | UUID | FK, NOT NULL | Tham chiếu tới `users(id)` |
 | `product_id` | UUID | FK, NOT NULL | Tham chiếu tới `products(id)` |
-| `quantity` | INT | NOT NULL, DEFAULT 1 | Số lượng sản phẩm thêm vào giỏ |
+| `quantity` | INT | NOT NULL, DEFAULT 1 | Số lượng linh kiện thêm vào giỏ |
 
-### 2. Thực thể `order_items` (Chi tiết mặt hàng trong đơn)
-Lưu danh sách sản phẩm và đơn giá tại thời điểm chốt đơn của đơn hàng.
+### 2. Thực thể `email_verification_tokens` (Token xác thực email)
+Lưu các token dùng để xác thực email khi người dùng đăng ký tài khoản mới (gửi qua Resend).
 
 | Tên thuộc tính | Kiểu dữ liệu | Ràng buộc | Mô tả |
 | :--- | :--- | :--- | :--- |
-| `id` | UUID | PK, NOT NULL | Mã định danh của dòng chi tiết đơn hàng |
+| `id` | UUID | PK, NOT NULL | Mã định danh duy nhất của bản ghi |
+| `user_id` | UUID | FK, NOT NULL | Tham chiếu tới `users(id)` (ON DELETE CASCADE) |
+| `token` | VARCHAR(255) | UK, NOT NULL | Chuỗi token ngẫu nhiên hoặc UUID gửi qua email |
+| `expires_at` | TIMESTAMP | NOT NULL | Thời điểm hết hạn token (mặc định 24 giờ) |
+| `used` | BOOLEAN | DEFAULT FALSE | Trạng thái đã sử dụng token (tránh dùng lại) |
+| `created_at` | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | Thời điểm tạo token |
+
+### 3. Thực thể `order_items` (Chi tiết linh kiện lẻ trong đơn hàng)
+Lưu danh sách linh kiện máy tính và đơn giá tại thời điểm chốt đơn của đơn hàng.
+
+| Tên thuộc tính | Kiểu dữ liệu | Ràng buộc | Mô tả |
+| :--- | :--- | :--- | :--- |
+| `id` | UUID | PK, NOT NULL | Mã định danh của dòng chi tiết linh kiện |
 | `order_id` | UUID | FK, NOT NULL | Tham chiếu tới `orders(id)` |
 | `product_id` | UUID | FK, NOT NULL | Tham chiếu tới `products(id)` |
 | `quantity` | INT | NOT NULL | Số lượng đặt mua |
-| `unit_price` | DECIMAL(15, 2) | NOT NULL | Đơn giá sản phẩm tại thời điểm đặt mua |
+| `unit_price` | DECIMAL(15, 2) | NOT NULL | Đơn giá linh kiện tại thời điểm đặt mua |
 
-### 3. Thực thể `orders` (Đơn đặt hàng)
-Quản lý các đơn mua hàng của người dùng.
+### 4. Thực thể `orders` (Đơn đặt hàng)
+Quản lý các đơn mua hàng (chứa linh kiện lẻ, cấu hình PC hoặc cả hai) của người dùng.
 
 | Tên thuộc tính | Kiểu dữ liệu | Ràng buộc | Mô tả |
 | :--- | :--- | :--- | :--- |
@@ -383,18 +507,64 @@ Quản lý các đơn mua hàng của người dùng.
 | `created_at` | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | Thời điểm khởi tạo đơn |
 | `updated_at` | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | Thời điểm cập nhật trạng thái gần nhất |
 
-### 4. Thực thể `pc_case_items` (Linh kiện cấu thành PC Case)
-Lưu danh sách các linh kiện thành phần thuộc về một bộ PC Case mẫu.
+### 5. Thực thể `password_reset_tokens` (Token đặt lại mật khẩu)
+Lưu các token dùng khi người dùng yêu cầu khôi phục/đặt lại mật khẩu (gửi qua Resend).
+
+| Tên thuộc tính | Kiểu dữ liệu | Ràng buộc | Mô tả |
+| :--- | :--- | :--- | :--- |
+| `id` | UUID | PK, NOT NULL | Mã định danh duy nhất của bản ghi |
+| `user_id` | UUID | FK, NOT NULL | Tham chiếu tới `users(id)` (ON DELETE CASCADE) |
+| `token` | VARCHAR(255) | UK, NOT NULL | Chuỗi token ngẫu nhiên hoặc UUID đặt lại mật khẩu |
+| `expires_at` | TIMESTAMP | NOT NULL | Thời điểm hết hạn token (mặc định 1 giờ) |
+| `used` | BOOLEAN | DEFAULT FALSE | Trạng thái đã sử dụng token (tránh dùng lại) |
+| `created_at` | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | Thời điểm tạo token |
+
+### 6. Thực thể `pc_case_cart_items` (Giỏ hàng cấu hình PC)
+Lưu thông tin các bộ cấu hình PC hoàn chỉnh trong giỏ hàng của từng người dùng. Khóa duy nhất (UNIQUE) trên cặp `(user_id, pc_case_id)`.
+
+| Tên thuộc tính | Kiểu dữ liệu | Ràng buộc | Mô tả |
+| :--- | :--- | :--- | :--- |
+| `id` | UUID | PK, NOT NULL | Mã định danh duy nhất của dòng giỏ hàng PC |
+| `user_id` | UUID | FK, NOT NULL | Tham chiếu tới `users(id)` |
+| `pc_case_id` | UUID | FK, NOT NULL | Tham chiếu tới `pc_cases(id)` |
+| `quantity` | INT | NOT NULL, DEFAULT 1 | Số lượng bộ PC Case thêm vào giỏ |
+
+### 7. Thực thể `pc_case_items` (Linh kiện cấu thành PC Case)
+Lưu danh sách các linh kiện thành phần thuộc về một bộ PC Case mẫu. Khóa duy nhất (UNIQUE) trên cặp `(pc_case_id, category)`.
 
 | Tên thuộc tính | Kiểu dữ liệu | Ràng buộc | Mô tả |
 | :--- | :--- | :--- | :--- |
 | `id` | UUID | PK, NOT NULL | Mã định danh liên kết |
 | `pc_case_id` | UUID | FK, NOT NULL | Tham chiếu tới `pc_cases(id)` |
 | `product_id` | UUID | FK, NOT NULL | Tham chiếu tới `products(id)` |
-| `category` | VARCHAR(20) | NOT NULL | Loại slot linh kiện (CPU, MAINBOARD, RAM, GPU, STORAGE, PSU, CASE, CPU_COOLER) |
+| `category` | VARCHAR(20) | NOT NULL | Loại slot linh kiện: CPU, MAINBOARD, RAM, GPU, STORAGE, PSU, CASE, CPU_COOLER |
 
-### 5. Thực thể `pc_cases` (Cấu hình PC mẫu)
-Quản lý các bộ máy tính hoàn chỉnh đã qua kiểm định ràng buộc tương thích, phục vụ tư vấn AI.
+### 8. Thực thể `pc_case_order_items` (Chi tiết cấu hình PC trong đơn hàng)
+Lưu danh sách các bộ cấu hình PC và đơn giá trọn bộ tại thời điểm chốt đơn của đơn hàng.
+
+| Tên thuộc tính | Kiểu dữ liệu | Ràng buộc | Mô tả |
+| :--- | :--- | :--- | :--- |
+| `id` | UUID | PK, NOT NULL | Mã định danh của dòng chi tiết PC Case |
+| `order_id` | UUID | FK, NOT NULL | Tham chiếu tới `orders(id)` |
+| `pc_case_id` | UUID | FK, NOT NULL | Tham chiếu tới `pc_cases(id)` |
+| `quantity` | INT | NOT NULL | Số lượng bộ PC Case đặt mua |
+| `unit_price` | DECIMAL(15, 2) | NOT NULL | Đơn giá trọn bộ PC Case tại thời điểm đặt hàng |
+
+### 9. Thực thể `pc_case_reviews` (Đánh giá cấu hình PC)
+Lưu nhận xét và đánh giá sao từ khách hàng đã mua bộ cấu hình PC. Khóa duy nhất (UNIQUE) trên cặp `(user_id, pc_case_id)`.
+
+| Tên thuộc tính | Kiểu dữ liệu | Ràng buộc | Mô tả |
+| :--- | :--- | :--- | :--- |
+| `id` | UUID | PK, NOT NULL | Mã định danh đánh giá PC Case |
+| `user_id` | UUID | FK, NOT NULL | Tham chiếu tới `users(id)` |
+| `pc_case_id` | UUID | FK, NOT NULL | Tham chiếu tới `pc_cases(id)` |
+| `rating` | SMALLINT | NOT NULL, CHECK (1..5) | Điểm đánh giá (1 đến 5 sao) |
+| `comment` | TEXT | NULL | Nội dung nhận xét |
+| `created_at` | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | Thời điểm đánh giá |
+| `updated_at` | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | Thời điểm cập nhật đánh giá |
+
+### 10. Thực thể `pc_cases` (Cấu hình PC mẫu)
+Quản lý các bộ máy tính hoàn chỉnh đã qua kiểm định ràng buộc tương thích, phục vụ tư vấn AI và bán trọn bộ.
 
 | Tên thuộc tính | Kiểu dữ liệu | Ràng buộc | Mô tả |
 | :--- | :--- | :--- | :--- |
@@ -407,12 +577,12 @@ Quản lý các bộ máy tính hoàn chỉnh đã qua kiểm định ràng bu�
 | `created_at` | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | Thời điểm tạo cấu hình |
 | `updated_at` | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | Thời điểm cập nhật |
 
-### 6. Thực thể `product_reviews` (Đánh giá sản phẩm)
-Lưu nhận xét và đánh giá sao từ khách hàng đã mua sản phẩm. Ràng buộc UNIQUE trên `(user_id, product_id)`.
+### 11. Thực thể `product_reviews` (Đánh giá linh kiện lẻ)
+Lưu nhận xét và đánh giá sao từ khách hàng đã mua linh kiện. Khóa duy nhất (UNIQUE) trên cặp `(user_id, product_id)`.
 
 | Tên thuộc tính | Kiểu dữ liệu | Ràng buộc | Mô tả |
 | :--- | :--- | :--- | :--- |
-| `id` | UUID | PK, NOT NULL | Mã định danh đánh giá |
+| `id` | UUID | PK, NOT NULL | Mã định danh đánh giá linh kiện |
 | `user_id` | UUID | FK, NOT NULL | Tham chiếu tới `users(id)` |
 | `product_id` | UUID | FK, NOT NULL | Tham chiếu tới `products(id)` |
 | `rating` | SMALLINT | NOT NULL, CHECK (1..5) | Điểm đánh giá (1 đến 5 sao) |
@@ -420,7 +590,7 @@ Lưu nhận xét và đánh giá sao từ khách hàng đã mua sản phẩm. R�
 | `created_at` | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | Thời điểm đánh giá |
 | `updated_at` | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | Thời điểm cập nhật đánh giá |
 
-### 7. Thực thể `products` (Linh kiện máy tính)
+### 12. Thực thể `products` (Linh kiện máy tính)
 Lưu trữ toàn bộ danh mục linh kiện máy tính của cửa hàng.
 
 | Tên thuộc tính | Kiểu dữ liệu | Ràng buộc | Mô tả |
@@ -432,7 +602,7 @@ Lưu trữ toàn bộ danh mục linh kiện máy tính của cửa hàng.
 | `category` | VARCHAR(20) | NOT NULL | Phân loại linh kiện: CPU, MAINBOARD, RAM, GPU, STORAGE, PSU, CASE, CPU_COOLER |
 | `image_url` | VARCHAR(500) | NULL | Đường dẫn ảnh từ Cloudinary |
 | `description` | TEXT | NULL | Mô tả tổng quan sản phẩm |
-| `detail` | JSONB | NOT NULL | Thông số kỹ thuật riêng biệt của từng loại linh kiện (xem bảng phụ bên dưới) |
+| `detail` | JSONB | NOT NULL | Thông số kỹ thuật riêng biệt của từng loại linh kiện (xem cấu trúc mẫu bên dưới) |
 | `is_active` | BOOLEAN | DEFAULT TRUE | Trạng thái kinh doanh (soft delete) |
 | `created_at` | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | Ngày tạo sản phẩm |
 | `updated_at` | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | Ngày cập nhật sản phẩm |
@@ -447,7 +617,7 @@ Lưu trữ toàn bộ danh mục linh kiện máy tính của cửa hàng.
 - **CPU_COOLER**: `{"type": "Air", "socket_support": ["LGA1700", "AM5"], "height_mm": 155, "tdp_support_w": 180}`
 - **STORAGE**: `{"type": "NVMe SSD", "capacity_gb": 1000, "interface": "M.2 PCIe 4.0", "read_mbps": 5000}`
 
-### 8. Thực thể `rag_chunks` (Đoạn tài liệu & Vector)
+### 13. Thực thể `rag_chunks` (Đoạn tài liệu & Vector)
 Lưu các đoạn văn bản bóc tách từ tài liệu chính sách và vector nhúng tương ứng phục vụ RAG.
 
 | Tên thuộc tính | Kiểu dữ liệu | Ràng buộc | Mô tả |
@@ -458,7 +628,7 @@ Lưu các đoạn văn bản bóc tách từ tài liệu chính sách và vector
 | `embedding` | VECTOR(768) | NOT NULL | Vector nhúng ngữ nghĩa (768 chiều từ Gemini) |
 | `created_at` | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | Thời điểm tạo vector |
 
-### 9. Thực thể `rag_documents` (Tài liệu tri thức RAG)
+### 14. Thực thể `rag_documents` (Tài liệu tri thức RAG)
 Lưu thông tin tệp tài liệu chính sách gốc do Quản trị viên nạp vào hệ thống.
 
 | Tên thuộc tính | Kiểu dữ liệu | Ràng buộc | Mô tả |
@@ -468,7 +638,7 @@ Lưu thông tin tệp tài liệu chính sách gốc do Quản trị viên nạp
 | `source_file` | VARCHAR(255) | NULL | Tên tệp gốc được upload (PDF, DOCX, TXT) |
 | `created_at` | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | Thời điểm tải lên |
 
-### 10. Thực thể `users` (Người dùng)
+### 15. Thực thể `users` (Người dùng)
 Lưu trữ thông tin tài khoản người dùng và quản trị viên hệ thống.
 
 | Tên thuộc tính | Kiểu dữ liệu | Ràng buộc | Mô tả |
