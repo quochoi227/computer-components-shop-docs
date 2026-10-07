@@ -24,12 +24,23 @@ erDiagram
         DECIMAL price
         INT stock_quantity
         ENUM category "CPU | MAINBOARD | RAM | GPU | STORAGE | PSU | CASE | CPU_COOLER"
-        VARCHAR image_url
         TEXT description
         JSONB detail
         BOOLEAN is_active
         TIMESTAMP created_at
         TIMESTAMP updated_at
+    }
+
+    %% =====================================================================
+    %% PRODUCT IMAGES
+    %% =====================================================================
+    product_images {
+        UUID id PK
+        UUID product_id FK
+        VARCHAR image_url
+        BOOLEAN is_primary "anh dai dien"
+        INT display_order "thu tu hien thi"
+        TIMESTAMP created_at
     }
 
     %% =====================================================================
@@ -179,6 +190,10 @@ erDiagram
 
     %% PC Case xuat hien trong nhieu dong don hang
     pc_cases ||--o{ pc_case_order_items : "included in"
+
+    %% --- Product Images ---
+    %% 1 san pham co nhieu anh, xoa san pham thi xoa anh theo
+    products ||--|{ product_images : "has images"
 
     %% --- Cart ---
     %% User co nhieu linh kien trong gio

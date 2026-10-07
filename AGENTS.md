@@ -140,13 +140,25 @@ products (
   price DECIMAL(15, 2) NOT NULL,
   stock_quantity INT NOT NULL DEFAULT 0,
   category ENUM('CPU', 'MAINBOARD', 'RAM', 'GPU', 'STORAGE', 'PSU', 'CASE', 'CPU_COOLER'),
-  image_url VARCHAR,           -- URL từ Cloudinary / S3
   description TEXT,
   detail JSONB NOT NULL,       -- Đặc tính kỹ thuật theo từng category (xem mục 5.2)
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP,
   updated_at TIMESTAMP
 )
+
+-- Ảnh sản phẩm (1 sản phẩm có thể có nhiều ảnh)
+product_images (
+  id UUID PRIMARY KEY,
+  product_id UUID REFERENCES products(id) ON DELETE CASCADE,
+  image_url VARCHAR NOT NULL,          -- URL từ Cloudinary / S3
+  is_primary BOOLEAN DEFAULT FALSE,    -- Ảnh đại diện (thumbnail, hiển thị trong danh sách)
+  display_order INT DEFAULT 0,         -- Thứ tự hiển thị trong gallery
+  created_at TIMESTAMP,
+  CONSTRAINT one_primary_per_product   -- Mỗi sản phẩm chỉ có 1 ảnh đại diện
+    UNIQUE (product_id, is_primary) WHERE (is_primary = TRUE)
+)
+
 
 -- Đơn hàng
 orders (
