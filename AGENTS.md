@@ -77,7 +77,7 @@ Dự án được tổ chức thành **2 repo riêng biệt**:
 |-----------|-----------|
 | Framework | Java + Spring Boot |
 | ORM | Spring Data JPA + Hibernate |
-| Security | Spring Security + JWT (Access Token + Refresh Token) |
+| Security | Spring Security + JWT |
 | Database | PostgreSQL |
 | Vector Search | pgvector extension |
 | AI Provider | Google Gemini API |
