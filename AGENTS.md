@@ -54,8 +54,8 @@ Dự án được tổ chức thành **2 repo riêng biệt**:
 
 | Repo | Mô tả |
 |------|-------|
-| `computer-components-shop-fe` | Frontend — React + Vite (TypeScript) |
-| `computer-components-shop-be` | Backend — Java + Spring Boot |
+| `techcraft-pc-frontend` | Frontend — React + Vite (TypeScript) |
+| `techcraft-pc-backend` | Backend — Java + Spring Boot |
 
 ---
 
@@ -541,7 +541,7 @@ Gemini trả về: Giải thích + gợi ý 1–3 PC Case phù hợp nhất
 
 ## 8. Cấu trúc thư mục đề xuất
 
-### Frontend (`computer-components-shop-fe`)
+### Frontend (`techcraft-pc-frontend`)
 
 ```
 src/
@@ -577,7 +577,7 @@ src/
 └── utils/            # Helper functions
 ```
 
-### Backend (`computer-components-shop-be`)
+### Backend (`techcraft-pc-backend`)
 
 ```
 src/main/java/com/example/pcshop/
