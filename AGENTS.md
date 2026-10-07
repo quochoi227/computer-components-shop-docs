@@ -99,9 +99,9 @@ Dự án được tổ chức thành **2 repo riêng biệt**:
 
 ### Cơ chế xác thực
 
-- **JWT** (stateless)
-- Access Token: thời gian sống ngắn (15–60 phút)
-- Refresh Token: thời gian sống dài (7–30 ngày), lưu HttpOnly cookie
+- **JWT** (stateless cho Access Token)
+- Access Token: thời gian sống ngắn (15–60 phút), không lưu DB
+- Refresh Token: thời gian sống dài (7–30 ngày), lưu HttpOnly cookie **và lưu vào bảng `refresh_tokens` trong DB** để hỗ trợ thu hồi (revoke) chủ động khi logout hoặc phát hiện bất thường
 
 ---
 
@@ -121,6 +121,16 @@ users (
   role ENUM('GUEST', 'USER', 'ADMIN') DEFAULT 'USER',
   created_at TIMESTAMP,
   updated_at TIMESTAMP
+)
+
+-- Refresh Token (lưu DB để hỗ trợ revoke khi logout / phát hiện bất thường)
+refresh_tokens (
+  id UUID PRIMARY KEY,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  token VARCHAR NOT NULL UNIQUE,   -- Giá trị token (thường là UUID / JWT ID)
+  expires_at TIMESTAMP NOT NULL,   -- Thời điểm hết hạn (7–30 ngày)
+  revoked BOOLEAN DEFAULT FALSE,   -- TRUE khi bị thu hồi chủ động (logout)
+  created_at TIMESTAMP
 )
 
 -- Sản phẩm (dùng chung 1 bảng, phân biệt qua category)

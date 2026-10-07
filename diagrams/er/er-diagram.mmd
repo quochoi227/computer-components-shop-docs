@@ -218,6 +218,18 @@ erDiagram
     rag_documents ||--|{ rag_chunks : "split into"
 
     %% =====================================================================
+    %% REFRESH TOKENS
+    %% =====================================================================
+    refresh_tokens {
+        UUID id PK
+        UUID user_id FK
+        VARCHAR token UK
+        TIMESTAMP expires_at
+        BOOLEAN revoked "mac dinh FALSE"
+        TIMESTAMP created_at
+    }
+
+    %% =====================================================================
     %% EMAIL VERIFICATION TOKENS
     %% =====================================================================
     email_verification_tokens {
@@ -241,7 +253,10 @@ erDiagram
         TIMESTAMP created_at
     }
 
-    %% --- Email / Password tokens ---
+    %% --- Auth tokens ---
+    %% 1 user co the co nhieu refresh token (da nang thiet bi)
+    users ||--o{ refresh_tokens : "authenticated with"
+
     %% 1 user co the co nhieu token xac thuc email (gui lai nhieu lan)
     users ||--o{ email_verification_tokens : "verifies with"
 
