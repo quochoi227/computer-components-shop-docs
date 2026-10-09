@@ -54,8 +54,8 @@ Dự án được tổ chức thành **2 repo riêng biệt**:
 
 | Repo | Mô tả |
 |------|-------|
-| `techcraft-pc-frontend` | Frontend — React + Vite (TypeScript) |
-| `techcraft-pc-backend` | Backend — Java + Spring Boot |
+| `techcraft-frontend` | Frontend — React + Vite (TypeScript) |
+| `techcraft-backend` | Backend — Java + Spring Boot |
 
 ---
 
@@ -159,7 +159,6 @@ product_images (
     UNIQUE (product_id, is_primary) WHERE (is_primary = TRUE)
 )
 
-
 -- Đơn hàng
 orders (
   id UUID PRIMARY KEY,
@@ -173,64 +172,51 @@ orders (
   updated_at TIMESTAMP
 )
 
--- Chi tiết đơn hàng — linh kiện lẻ
+-- Chi tiết đơn hàng (linh kiện lẻ HOẶC cấu hình PC — đúng một trong hai)
 order_items (
   id UUID PRIMARY KEY,
   order_id UUID REFERENCES orders(id),
-  product_id UUID REFERENCES products(id),
+  product_id  UUID REFERENCES products(id),  -- nullable
+  pc_case_id  UUID REFERENCES pc_cases(id),  -- nullable
   quantity INT NOT NULL,
-  unit_price DECIMAL(15, 2) NOT NULL  -- Giá tại thời điểm đặt hàng
+  unit_price DECIMAL(15, 2) NOT NULL,        -- Giá tại thời điểm đặt hàng
+  CHECK (
+    (product_id IS NOT NULL AND pc_case_id IS NULL) OR
+    (product_id IS NULL     AND pc_case_id IS NOT NULL)
+  )
 )
 
--- Chi tiết đơn hàng — cấu hình PC
-pc_case_order_items (
-  id UUID PRIMARY KEY,
-  order_id UUID REFERENCES orders(id),
-  pc_case_id UUID REFERENCES pc_cases(id),
-  quantity INT NOT NULL,
-  unit_price DECIMAL(15, 2) NOT NULL  -- Tổng giá PC Case tại thời điểm đặt hàng
-)
-
--- Giỏ hàng — linh kiện lẻ
+-- Giỏ hàng (linh kiện lẻ HOẶC cấu hình PC — đúng một trong hai)
 cart_items (
   id UUID PRIMARY KEY,
   user_id UUID REFERENCES users(id),
-  product_id UUID REFERENCES products(id),
+  product_id  UUID REFERENCES products(id),  -- nullable
+  pc_case_id  UUID REFERENCES pc_cases(id),  -- nullable
   quantity INT NOT NULL DEFAULT 1,
-  UNIQUE(user_id, product_id)
+  UNIQUE(user_id, product_id),
+  UNIQUE(user_id, pc_case_id),
+  CHECK (
+    (product_id IS NOT NULL AND pc_case_id IS NULL) OR
+    (product_id IS NULL     AND pc_case_id IS NOT NULL)
+  )
 )
 
--- Giỏ hàng — cấu hình PC
-pc_case_cart_items (
+-- Đánh giá (linh kiện lẻ HOẶC cấu hình PC — đúng một trong hai)
+reviews (
   id UUID PRIMARY KEY,
   user_id UUID REFERENCES users(id),
-  pc_case_id UUID REFERENCES pc_cases(id),
-  quantity INT NOT NULL DEFAULT 1,
-  UNIQUE(user_id, pc_case_id)
-)
-
--- Đánh giá linh kiện
-product_reviews (
-  id UUID PRIMARY KEY,
-  user_id UUID REFERENCES users(id),
-  product_id UUID REFERENCES products(id),
+  product_id  UUID REFERENCES products(id),  -- nullable
+  pc_case_id  UUID REFERENCES pc_cases(id),  -- nullable
   rating SMALLINT NOT NULL CHECK (rating BETWEEN 1 AND 5),
   comment TEXT,
   created_at TIMESTAMP,
   updated_at TIMESTAMP,
-  UNIQUE(user_id, product_id)   -- Mỗi user chỉ đánh giá 1 lần / sản phẩm
-)
-
--- Đánh giá cấu hình PC
-pc_case_reviews (
-  id UUID PRIMARY KEY,
-  user_id UUID REFERENCES users(id),
-  pc_case_id UUID REFERENCES pc_cases(id),
-  rating SMALLINT NOT NULL CHECK (rating BETWEEN 1 AND 5),
-  comment TEXT,
-  created_at TIMESTAMP,
-  updated_at TIMESTAMP,
-  UNIQUE(user_id, pc_case_id)   -- Mỗi user chỉ đánh giá 1 lần / PC Case
+  UNIQUE(user_id, product_id),               -- Mỗi user chỉ đánh giá 1 lần / sản phẩm
+  UNIQUE(user_id, pc_case_id),               -- Mỗi user chỉ đánh giá 1 lần / PC Case
+  CHECK (
+    (product_id IS NOT NULL AND pc_case_id IS NULL) OR
+    (product_id IS NULL     AND pc_case_id IS NOT NULL)
+  )
 )
 
 -- Token xác thực email (gửi qua Resend khi đăng ký)
@@ -718,6 +704,7 @@ pgvector.top-k: 5
 # Resend (Email Service)
 resend.api-key: <resend-api-key>
 resend.from-email: noreply@yourdomain.com
+resend.from-email-name: "PC Shop Support"
 
 # Email token expiry
 app.email-verification-token-expiry-hours: 24

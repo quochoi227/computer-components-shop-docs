@@ -59,67 +59,44 @@ erDiagram
     }
 
     %% =====================================================================
-    %% ORDER ITEMS — san pham linh kien trong don hang
+    %% ORDER ITEMS
+    %% Phuong an B: product_id va pc_case_id deu nullable
+    %% CHECK: dung mot trong hai phai non-null
     %% =====================================================================
     order_items {
         UUID id PK
         UUID order_id FK
-        UUID product_id FK
+        UUID product_id FK "nullable"
+        UUID pc_case_id FK "nullable"
         INT quantity
         DECIMAL unit_price
     }
 
     %% =====================================================================
-    %% PC CASE ORDER ITEMS — cau hinh PC trong don hang
-    %% =====================================================================
-    pc_case_order_items {
-        UUID id PK
-        UUID order_id FK
-        UUID pc_case_id FK
-        INT quantity
-        DECIMAL unit_price "Gia PC Case tai thoi diem dat hang"
-    }
-
-    %% =====================================================================
-    %% CART ITEMS — gio hang linh kien
+    %% CART ITEMS
+    %% Phuong an B: product_id va pc_case_id deu nullable
+    %% CHECK: dung mot trong hai phai non-null
+    %% UNIQUE(user_id, product_id) va UNIQUE(user_id, pc_case_id)
     %% =====================================================================
     cart_items {
         UUID id PK
         UUID user_id FK
-        UUID product_id FK
+        UUID product_id FK "nullable"
+        UUID pc_case_id FK "nullable"
         INT quantity
     }
 
     %% =====================================================================
-    %% PC CASE CART ITEMS — gio hang cau hinh PC
+    %% REVIEWS (gop product_reviews + pc_case_reviews)
+    %% Phuong an B: product_id va pc_case_id deu nullable
+    %% CHECK: dung mot trong hai phai non-null
+    %% UNIQUE(user_id, product_id) va UNIQUE(user_id, pc_case_id)
     %% =====================================================================
-    pc_case_cart_items {
+    reviews {
         UUID id PK
         UUID user_id FK
-        UUID pc_case_id FK
-        INT quantity
-    }
-
-    %% =====================================================================
-    %% PRODUCT REVIEWS — danh gia linh kien
-    %% =====================================================================
-    product_reviews {
-        UUID id PK
-        UUID user_id FK
-        UUID product_id FK
-        SMALLINT rating "1-5"
-        TEXT comment
-        TIMESTAMP created_at
-        TIMESTAMP updated_at
-    }
-
-    %% =====================================================================
-    %% PC CASE REVIEWS — danh gia cau hinh PC
-    %% =====================================================================
-    pc_case_reviews {
-        UUID id PK
-        UUID user_id FK
-        UUID pc_case_id FK
+        UUID product_id FK "nullable"
+        UUID pc_case_id FK "nullable"
         SMALLINT rating "1-5"
         TEXT comment
         TIMESTAMP created_at
@@ -172,67 +149,6 @@ erDiagram
     }
 
     %% =====================================================================
-    %% RELATIONSHIPS
-    %% =====================================================================
-
-    %% --- Orders ---
-    %% User dat nhieu don hang
-    users ||--o{ orders : "places"
-
-    %% Don hang chua linh kien rieng le
-    orders ||--o{ order_items : "contains product"
-
-    %% Don hang chua cau hinh PC
-    orders ||--o{ pc_case_order_items : "contains pc case"
-
-    %% Linh kien xuat hien trong nhieu dong don hang
-    products ||--o{ order_items : "included in"
-
-    %% PC Case xuat hien trong nhieu dong don hang
-    pc_cases ||--o{ pc_case_order_items : "included in"
-
-    %% --- Product Images ---
-    %% 1 san pham co nhieu anh, xoa san pham thi xoa anh theo
-    products ||--|{ product_images : "has images"
-
-    %% --- Cart ---
-    %% User co nhieu linh kien trong gio
-    users ||--o{ cart_items : "adds product to cart"
-
-    %% User co nhieu cau hinh PC trong gio
-    users ||--o{ pc_case_cart_items : "adds pc case to cart"
-
-    %% Linh kien nam trong nhieu gio hang
-    products ||--o{ cart_items : "added to cart"
-
-    %% PC Case nam trong nhieu gio hang
-    pc_cases ||--o{ pc_case_cart_items : "added to cart"
-
-    %% --- Reviews ---
-    %% User danh gia linh kien
-    users ||--o{ product_reviews : "reviews product"
-
-    %% User danh gia cau hinh PC
-    users ||--o{ pc_case_reviews : "reviews pc case"
-
-    %% Linh kien nhan nhieu danh gia
-    products ||--o{ product_reviews : "receives review"
-
-    %% PC Case nhan nhieu danh gia
-    pc_cases ||--o{ pc_case_reviews : "receives review"
-
-    %% --- PC Case composition ---
-    %% PC Case gom nhieu linh kien
-    pc_cases ||--|{ pc_case_items : "assembled from"
-
-    %% Linh kien duoc dung trong nhieu PC Case
-    products ||--o{ pc_case_items : "used in"
-
-    %% --- RAG ---
-    %% Tai lieu chia thanh nhieu chunk
-    rag_documents ||--|{ rag_chunks : "split into"
-
-    %% =====================================================================
     %% REFRESH TOKENS
     %% =====================================================================
     refresh_tokens {
@@ -268,12 +184,43 @@ erDiagram
         TIMESTAMP created_at
     }
 
+    %% =====================================================================
+    %% RELATIONSHIPS
+    %% =====================================================================
+
+    %% --- Orders ---
+    users ||--o{ orders : "places"
+    orders ||--o{ order_items : "contains"
+
+    %% order_items tham chieu toi product hoac pc_case (chi mot trong hai)
+    products ||--o{ order_items : "ordered as product"
+    pc_cases ||--o{ order_items : "ordered as pc case"
+
+    %% --- Product Images ---
+    products ||--|{ product_images : "has images"
+
+    %% --- Cart ---
+    users ||--o{ cart_items : "has in cart"
+
+    %% cart_items tham chieu toi product hoac pc_case (chi mot trong hai)
+    products ||--o{ cart_items : "added to cart as product"
+    pc_cases ||--o{ cart_items : "added to cart as pc case"
+
+    %% --- Reviews ---
+    users ||--o{ reviews : "writes"
+
+    %% reviews tham chieu toi product hoac pc_case (chi mot trong hai)
+    products ||--o{ reviews : "reviewed as product"
+    pc_cases ||--o{ reviews : "reviewed as pc case"
+
+    %% --- PC Case composition ---
+    pc_cases ||--|{ pc_case_items : "assembled from"
+    products ||--o{ pc_case_items : "used in"
+
+    %% --- RAG ---
+    rag_documents ||--|{ rag_chunks : "split into"
+
     %% --- Auth tokens ---
-    %% 1 user co the co nhieu refresh token (da nang thiet bi)
     users ||--o{ refresh_tokens : "authenticated with"
-
-    %% 1 user co the co nhieu token xac thuc email (gui lai nhieu lan)
     users ||--o{ email_verification_tokens : "verifies with"
-
-    %% 1 user co the co nhieu token dat lai mat khau
     users ||--o{ password_reset_tokens : "resets password with"
